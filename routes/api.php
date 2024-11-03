@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\welcomeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,12 +21,14 @@ use App\Http\Controllers\PasswordResetController;
 //     return $request->user();
 // });
 
+Route::get('/', [welcomeController::class, 'welcome']);
+
 
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
-Route::post('password/reset-link', [PasswordResetController::class, 'sendResetLink']);
-Route::post('password/reset', [PasswordResetController::class, 'reset']);
+Route::post('password/reset-link', [AuthController::class, 'sendResetLink']);
+Route::post('password/reset', [AuthController::class, 'reset']);
 
 Route::middleware('auth:api')->group(function () {
     Route::get('user', [AuthController::class, 'user']);
