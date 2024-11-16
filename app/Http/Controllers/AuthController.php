@@ -10,6 +10,11 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Traits\ResponseTrait;
 use Illuminate\Support\Facades\Password;
 use App\Notifications\ResetPasswordNotification;
+use Illuminate\Support\Str;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
+use Laravel\Socialite\Facades\Socialite;
+
 class AuthController extends Controller
 {
     use ResponseTrait;
@@ -139,4 +144,43 @@ class AuthController extends Controller
         // Return success response for logout
         return $this->success(null, 'Successfully logged out');
     }
+
+    // google login 
+
+    public function redirectToGoogle()
+    {
+        return Socialite::driver('google')->redirect();
+    }
+
+
+    public function handleGoogleCallback()
+{
+    try {
+        // Use stateless to avoid session-related issues
+        $googleUser = Socialite::driver('google')->user();
+
+        // Your logic to find or create the user in your database
+        $user = User::firstOrCreate(
+            ['email' => $googleUser->getEmail()],
+            [
+                'name' => $googleUser->getName(),
+                'password' => bcrypt(Str::random(16)),
+            ]
+        );
+
+        // Generate JWT for the user
+        $token = JWTAuth::fromUser($user);
+
+        return response()->json([
+            'user' => $user,
+            'token' => $token,
+        ], 200);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Error during authentication: ' . $e->getMessage(),
+        ], 500);
+    }
+}
+
+
 }
