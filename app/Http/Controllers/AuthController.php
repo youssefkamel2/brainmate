@@ -157,9 +157,7 @@ class AuthController extends Controller
 {
     try {
         // Use stateless to avoid session-related issues
-        $googleUser = Socialite::driver('google')->user();
-
-        dd($googleUser);
+        $googleUser = Socialite::driver('google')->stateless()->user();
 
         // Your logic to find or create the user in your database
         $user = User::firstOrCreate(
