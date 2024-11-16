@@ -155,9 +155,33 @@ class AuthController extends Controller
 
     public function handleGoogleCallback()
 {
-    return response()->json([
-        'error' => 'test',
-    ], 200);
+    try {
+        // Use stateless to avoid session-related issues
+        $googleUser = Socialite::driver('google')->user();
+
+        dd($googleUser);
+
+        // Your logic to find or create the user in your database
+        $user = User::firstOrCreate(
+            ['email' => $googleUser->getEmail()],
+            [
+                'name' => $googleUser->getName(),
+                'password' => bcrypt(Str::random(16)),
+            ]
+        );
+
+        // Generate JWT for the user
+        $token = JWTAuth::fromUser($user);
+
+        return response()->json([
+            'user' => $user,
+            'token' => $token,
+        ], 200);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'Error during authentication: ' . $e->getMessage(),
+        ], 500);
+    }
 }
 
 
