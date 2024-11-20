@@ -15,6 +15,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
 
+
 class AuthController extends Controller
 {
     use ResponseTrait;
@@ -153,10 +154,41 @@ class AuthController extends Controller
     }
 
 
-    public function handleGoogleCallback()
+//     public function handleGoogleCallback()
+// {
+//     try {
+//         // Use stateless to avoid session-related issues
+//         // @ts-ignore
+//         $googleUser = Socialite::driver('google')->stateless()->user();
+
+//         // Your logic to find or create the user in your database
+//         $user = User::firstOrCreate(
+//             ['email' => $googleUser->getEmail()],
+//             [
+//                 'name' => $googleUser->getName(),
+//                 'password' => bcrypt(Str::random(16)),
+//             ]
+//         );
+
+//         // Generate JWT for the user
+//         $token = JWTAuth::fromUser($user);
+
+//         return response()->json([
+//             'user' => $user,
+//             'token' => $token,
+//         ], 200);
+//     } catch (\Exception $e) {
+//         return response()->json([
+//             'error' => 'Error during authentication: ' . $e->getMessage(),
+//         ], 500);
+//     }
+//     }
+
+
+
+public function handleGoogleCallback()
 {
     try {
-        // Use stateless to avoid session-related issues
         $googleUser = Socialite::driver('google')->stateless()->user();
 
         // Your logic to find or create the user in your database
@@ -171,16 +203,14 @@ class AuthController extends Controller
         // Generate JWT for the user
         $token = JWTAuth::fromUser($user);
 
-        return response()->json([
-            'user' => $user,
-            'token' => $token,
-        ], 200);
+        // Redirect to React frontend with token
+        $frontendUrl = env('FRONTEND_URL', 'https://brainmate.vercel.app/test'); // Replace with your React app URL
+        return redirect()->to("{$frontendUrl}/auth?token={$token}");
     } catch (\Exception $e) {
         return response()->json([
             'error' => 'Error during authentication: ' . $e->getMessage(),
         ], 500);
     }
 }
-
 
 }
