@@ -205,7 +205,7 @@ public function handleGoogleCallback()
 
         // Redirect to React frontend with token
         $frontendUrl = env('FRONTEND_URL', 'https://brainmate.vercel.app/login'); // Replace with your React app URL
-        return redirect()->to("{$frontendUrl}/auth?token={$token}");
+        return redirect()->to("{$frontendUrl}?token={$token}");
     } catch (\Exception $e) {
         return response()->json([
             'error' => 'Error during authentication: ' . $e->getMessage(),
