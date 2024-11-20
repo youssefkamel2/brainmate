@@ -204,7 +204,7 @@ public function handleGoogleCallback()
         $token = JWTAuth::fromUser($user);
 
         // Redirect to React frontend with token
-        $frontendUrl = env('FRONTEND_URL', 'https://brainmate.vercel.app/test'); // Replace with your React app URL
+        $frontendUrl = env('FRONTEND_URL', 'https://brainmate.vercel.app/login'); // Replace with your React app URL
         return redirect()->to("{$frontendUrl}/auth?token={$token}");
     } catch (\Exception $e) {
         return response()->json([
