@@ -55,21 +55,22 @@ class AuthController extends Controller
     // Login method
     public function login(Request $request)
     {
-        // Retrieve credentials
         $credentials = $request->only('email', 'password');
-
-        // Attempt to authenticate the user
+    
         if (!$token = JWTAuth::attempt($credentials)) {
             return $this->error('Invalid credentials', 401);
         }
-
-        // Return success response with token and its details
+    
+        $user = auth()->user();
+    
         return $this->success([
             'token' => $token,
             'token_type' => 'bearer',
-            'expires_in' => config('jwt.ttl') * 60,  // Retrieve the configured TTL directly
+            'expires_in' => config('jwt.ttl') * 60,
+            'user' => $user, 
         ], 'Login successful');
     }
+    
 
     public function sendResetLink(Request $request)
     {
@@ -99,11 +100,11 @@ class AuthController extends Controller
             'email' => 'required|string|email|exists:users,email',
             'password' => 'required|string|min:6|confirmed',
         ]);
-    
+
         if ($validator->fails()) {
             return $this->error($validator->errors(), 422);
         }
-    
+
         // Verify token validity
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
@@ -113,7 +114,7 @@ class AuthController extends Controller
                 ])->save();
             }
         );
-    
+
         if ($status == Password::PASSWORD_RESET) {
             return $this->success(null, 'Password has been reset successfully');
         } else {
@@ -153,64 +154,61 @@ class AuthController extends Controller
         return Socialite::driver('google')->redirect();
     }
 
+    public function handleGoogleCallback()
+    {
+        try {
+            $googleUser = Socialite::driver('google')->stateless()->user();
 
-//     public function handleGoogleCallback()
-// {
-//     try {
-//         // Use stateless to avoid session-related issues
-//         // @ts-ignore
-//         $googleUser = Socialite::driver('google')->stateless()->user();
+            // Your logic to find or create the user in your database
+            $user = User::firstOrCreate(
+                ['email' => $googleUser->getEmail()],
+                [
+                    'name' => $googleUser->getName(),
+                    'password' => bcrypt(Str::random(16)),
+                ]
+            );
 
-//         // Your logic to find or create the user in your database
-//         $user = User::firstOrCreate(
-//             ['email' => $googleUser->getEmail()],
-//             [
-//                 'name' => $googleUser->getName(),
-//                 'password' => bcrypt(Str::random(16)),
-//             ]
-//         );
+            // Generate JWT for the user
+            $token = JWTAuth::fromUser($user);
 
-//         // Generate JWT for the user
-//         $token = JWTAuth::fromUser($user);
-
-//         return response()->json([
-//             'user' => $user,
-//             'token' => $token,
-//         ], 200);
-//     } catch (\Exception $e) {
-//         return response()->json([
-//             'error' => 'Error during authentication: ' . $e->getMessage(),
-//         ], 500);
-//     }
-//     }
-
-
-
-public function handleGoogleCallback()
-{
-    try {
-        $googleUser = Socialite::driver('google')->stateless()->user();
-
-        // Your logic to find or create the user in your database
-        $user = User::firstOrCreate(
-            ['email' => $googleUser->getEmail()],
-            [
-                'name' => $googleUser->getName(),
-                'password' => bcrypt(Str::random(16)),
-            ]
-        );
-
-        // Generate JWT for the user
-        $token = JWTAuth::fromUser($user);
-
-        // Redirect to React frontend with token
-        $frontendUrl = env('FRONTEND_URL', 'https://brainmate.vercel.app/login'); // Replace with your React app URL
-        return redirect()->to("{$frontendUrl}?token={$token}");
-    } catch (\Exception $e) {
-        return response()->json([
-            'error' => 'Error during authentication: ' . $e->getMessage(),
-        ], 500);
+            // Redirect to React frontend with token
+            $frontendUrl = env('FRONTEND_URL', 'https://brainmate.vercel.app/login'); // Replace with your React app URL
+            return redirect()->to("{$frontendUrl}?token={$token}");
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Error during authentication: ' . $e->getMessage(),
+            ], 500);
+        }
     }
-}
 
+
+    public function validateToken(Request $request)
+    {
+        try {
+            // Authenticate and fetch the user
+            $user = JWTAuth::parseToken()->authenticate();
+
+            if (!$user) {
+                return $this->error('Invalid token or user not found.', 401);
+            }
+
+            // Refresh the token
+            $token = JWTAuth::getToken();
+            $newToken = JWTAuth::refresh($token);
+
+            // Return success response with token and user details
+            return $this->success([
+                'token' => $newToken,
+                'token_type' => 'bearer',
+                'expires_in' => config('jwt.ttl') * 60, // Token expiration in seconds
+                'user' => $user, // Include full user data
+            ], 'Token is valid.');
+        } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
+            return $this->error('Token expired.', 401);
+        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+            return $this->error('Token is invalid.', 401);
+        } catch (\Exception $e) {
+            return $this->error('Could not authenticate token.', 500);
+        }
+    }
 }
