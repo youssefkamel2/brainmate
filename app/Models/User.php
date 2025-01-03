@@ -21,6 +21,7 @@ class User extends Authenticatable implements JWTSubject
         'name',
         'email',
         'password',
+        'role_id',
     ];
 
     /**
@@ -60,5 +61,25 @@ class User extends Authenticatable implements JWTSubject
     public function getJWTCustomClaims()
     {
         return [];
+    }
+
+    public function role()
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
+
+    public function tasks()
+    {
+        return $this->belongsToMany(Task::class, 'task_members', 'user_id', 'task_id')
+                    ->withPivot('team_id', 'project_id')
+                    ->withTimestamps();
+    }
+
+    // Get the teams to which the user belongs via task_members pivot table
+    public function teams()
+    {
+        return $this->belongsToMany(Team::class, 'task_members', 'user_id', 'team_id')
+                    ->withPivot('task_id', 'project_id')
+                    ->withTimestamps();
     }
 }

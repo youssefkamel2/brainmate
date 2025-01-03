@@ -3,26 +3,52 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\TaskController;
 use App\Http\Controllers\welcomeController;
+use App\Http\Controllers\ModelTestController;
 
-Route::get('/', [welcomeController::class, 'welcome']);
 
-Route::post('register', [AuthController::class, 'register']);
-Route::post('login', [AuthController::class, 'login']);
+// API Version Prefix for Versioning
+Route::prefix('v1')->group(function () {
+    
+    Route::get('/', [WelcomeController::class, 'welcome']);
 
-Route::middleware(['web'])->group(function () {
-    Route::get('auth/google', [AuthController::class, 'redirectToGoogle']);
-    Route::get('auth/google/callback', [AuthController::class, 'handleGoogleCallback']);
+    // Public Routes
+    Route::get('test-models', [ModelTestController::class, 'testModels']);
+
+    // Authentication Routes
+    Route::prefix('auth')->group(function () {
+        Route::post('register', [AuthController::class, 'register']);
+        Route::post('login', [AuthController::class, 'login']);
+        Route::post('validate-token', [AuthController::class, 'validateToken']);
+
+        Route::middleware(['web'])->group(function () {
+            Route::get('google', [AuthController::class, 'redirectToGoogle']);
+            Route::get('google/callback', [AuthController::class, 'handleGoogleCallback']);
+        });
+    });
+
+    // Password Reset Routes
+    Route::prefix('password')->group(function () {
+        Route::post('reset/request', [AuthController::class, 'sendResetLink']);
+        Route::post('reset/confirm', [AuthController::class, 'reset']);
+    });
+
+    // Protected Routes (Require API Authentication)
+    Route::middleware('auth:api')->group(function () {
+        Route::prefix('user')->group(function () {
+            Route::get('/', [AuthController::class, 'user']);
+            Route::post('logout', [AuthController::class, 'logout']);
+        });
+
+        // Task Routes
+        Route::prefix('tasks')->group(function () {
+            Route::get('/', [TaskController::class, 'getAllTasks']); 
+            Route::get('/assigned', [TaskController::class, 'getAssignedTasks']);
+            Route::post('/', [TaskController::class, 'createTask']); 
+            Route::put('/{task}', [TaskController::class, 'updateTask']); 
+            Route::delete('/{task}', [TaskController::class, 'deleteTask']); 
+        });
+    });
 });
-
-Route::post('password/reset-link', [AuthController::class, 'sendResetLink']);
-Route::post('password/reset', [AuthController::class, 'reset']);
-
-// Protected routes
-Route::middleware('auth:api')->group(function () {
-    Route::get('user', [AuthController::class, 'user']);
-    Route::post('logout', [AuthController::class, 'logout']);
-});
-
-Route::post('validate-token', [AuthController::class, 'validateToken']); 
 

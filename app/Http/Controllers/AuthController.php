@@ -66,7 +66,6 @@ class AuthController extends Controller
         return $this->success([
             'token' => $token,
             'token_type' => 'bearer',
-            'expires_in' => config('jwt.ttl') * 60,
             'user' => $user, 
         ], 'Login successful');
     }
@@ -137,15 +136,19 @@ class AuthController extends Controller
     // Logout method
     public function logout()
     {
-        if (!auth()->check()) {
-            return $this->error('Unauthorized access. Please log in.', 401);
+        try {
+            // Invalidate the token
+            JWTAuth::invalidate(JWTAuth::getToken());
+    
+            // Return success response
+            return $this->success(null, 'Successfully logged out.');
+        } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
+            return $this->error('Token is already invalidated.', 401);
+        } catch (\Exception $e) {
+            return $this->error('An error occurred during logout.', 500);
         }
-
-        auth()->logout();
-
-        // Return success response for logout
-        return $this->success(null, 'Successfully logged out');
     }
+    
 
     // google login 
 
@@ -172,7 +175,7 @@ class AuthController extends Controller
             $token = JWTAuth::fromUser($user);
 
             // Redirect to React frontend with token
-            $frontendUrl = env('FRONTEND_URL', 'https://brainmate.vercel.app/login'); // Replace with your React app URL
+            $frontendUrl = env('FRONTEND_URL', 'https://brainmate.vercel.app/login');
             return redirect()->to("{$frontendUrl}?token={$token}");
         } catch (\Exception $e) {
             return response()->json([
@@ -181,26 +184,20 @@ class AuthController extends Controller
         }
     }
 
-
     public function validateToken(Request $request)
     {
         try {
             // Authenticate and fetch the user
             $user = JWTAuth::parseToken()->authenticate();
-
+    
             if (!$user) {
                 return $this->error('Invalid token or user not found.', 401);
             }
-
-            // Refresh the token
-            $token = JWTAuth::getToken();
-            $newToken = JWTAuth::refresh($token);
-
-            // Return success response with token and user details
+    
+            // Return success response with the same token
             return $this->success([
-                'token' => $newToken,
+                'token' => JWTAuth::getToken()->get(),
                 'token_type' => 'bearer',
-                'expires_in' => config('jwt.ttl') * 60, // Token expiration in seconds
                 'user' => $user, // Include full user data
             ], 'Token is valid.');
         } catch (\Tymon\JWTAuth\Exceptions\TokenExpiredException $e) {
@@ -211,4 +208,5 @@ class AuthController extends Controller
             return $this->error('Could not authenticate token.', 500);
         }
     }
+    
 }
