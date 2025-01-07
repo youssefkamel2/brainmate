@@ -77,7 +77,7 @@ class TaskController extends Controller
             }
         }
 
-        return $this->success(['task' => $task], 'Task created successfully.');
+        return $this->success(['task' => $task], 'Task created successfully.', 201);
     }
 
     // Update a task
@@ -160,4 +160,17 @@ class TaskController extends Controller
 
         return $this->success(null, 'Task deleted successfully.');
     }
+
+    // get task by id
+    public function getTaskById($task_id)
+{
+    // Retrieve the task with its members
+    $task = Task::with('members')->find($task_id);
+
+    if (!$task) {
+        return $this->error('Task not found', 404);
+    }
+
+    return $this->success(['task' => $task], 'Task retrieved successfully.');
+}
 }

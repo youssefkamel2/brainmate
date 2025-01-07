@@ -45,6 +45,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('tasks')->group(function () {
             Route::get('/', [TaskController::class, 'getAllTasks']); 
             Route::get('/assigned', [TaskController::class, 'getAssignedTasks']);
+            Route::get('/{task}', [TaskController::class, 'getTaskById']);
             Route::post('/', [TaskController::class, 'createTask']); 
             Route::put('/{task}', [TaskController::class, 'updateTask']); 
             Route::delete('/{task}', [TaskController::class, 'deleteTask']); 
