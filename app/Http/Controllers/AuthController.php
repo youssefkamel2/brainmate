@@ -196,6 +196,35 @@ class AuthController extends Controller
         return $this->success(null, 'Code verified. Proceed to reset password.');
     }
 
+    public function resetPasswordApp(Request $request)
+    {
+        // Validate the input
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|exists:users,email',
+            'password' => 'required|string|min:6|confirmed',
+            'password_confirmation' => 'required|string|min:6', 
+        ]);
+
+        // Return validation errors, if any
+        if ($validator->fails()) {
+            return $this->error($validator->errors(), 422);
+        }
+
+        // Fetch the user by email
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return $this->error('User not found.', 404);
+        }
+
+        // Update the password
+        $user->password = Hash::make($request->password);
+        $user->save();
+
+        // Return success response
+        return $this->success(null, 'Password has been reset successfully.');
+    }
+
 
 
     // Method to get authenticated user details
