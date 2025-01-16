@@ -3,17 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
-use Tymon\JWTAuth\Facades\JWTAuth;
-use App\Traits\ResponseTrait;
-use Illuminate\Support\Facades\Password;
-use App\Notifications\ResetPasswordNotification;
 use Illuminate\Support\Str;
+use Illuminate\Http\Request;
+use App\Traits\ResponseTrait;
+use App\Models\PasswordResetCode;
+use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Facades\Validator;
+use App\Notifications\ResetCodeNotification;
+use App\Notifications\ResetPasswordNotification;
 
 
 class AuthController extends Controller
@@ -56,20 +58,20 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $credentials = $request->only('email', 'password');
-    
+
         if (!$token = JWTAuth::attempt($credentials)) {
             return $this->error('Invalid credentials', 401);
         }
-    
+
         $user = auth()->user();
-    
+
         return $this->success([
             'token' => $token,
             'token_type' => 'bearer',
-            'user' => $user, 
+            'user' => $user,
         ], 'Login successful');
     }
-    
+
 
     public function sendResetLink(Request $request)
     {
@@ -121,6 +123,42 @@ class AuthController extends Controller
         }
     }
 
+    // for mobile app // send reset code
+
+    public function sendResetCode(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|exists:users,email',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors(), 422);
+        }
+
+        // Generate a random 6-digit numeric code
+        $code = random_int(100000, 999999);
+
+        // Hash the code for storage
+        $hashedCode = Hash::make($code);
+
+        // Store code in the database
+        PasswordResetCode::updateOrCreate(
+            ['email' => $request->email],
+            [
+                'reset_code' => $hashedCode,
+                'expires_at' => now()->addMinutes(15),
+                'attempts' => 0,
+            ]
+        );
+
+        // Send the code via email
+        $user = User::where('email', $request->email)->first();
+        $user->notify(new ResetCodeNotification($code)); // Custom notification
+
+        return $this->success(null, 'Reset code sent to your email.');
+    }
+
+
     // Method to get authenticated user details
     public function user()
     {
@@ -139,7 +177,7 @@ class AuthController extends Controller
         try {
             // Invalidate the token
             JWTAuth::invalidate(JWTAuth::getToken());
-    
+
             // Return success response
             return $this->success(null, 'Successfully logged out.');
         } catch (\Tymon\JWTAuth\Exceptions\TokenInvalidException $e) {
@@ -148,7 +186,6 @@ class AuthController extends Controller
             return $this->error('An error occurred during logout.', 500);
         }
     }
-    
 
     // google login 
 
@@ -189,11 +226,11 @@ class AuthController extends Controller
         try {
             // Authenticate and fetch the user
             $user = JWTAuth::parseToken()->authenticate();
-    
+
             if (!$user) {
                 return $this->error('Invalid token or user not found.', 401);
             }
-    
+
             // Return success response with the same token
             return $this->success([
                 'token' => JWTAuth::getToken()->get(),
@@ -208,5 +245,4 @@ class AuthController extends Controller
             return $this->error('Could not authenticate token.', 500);
         }
     }
-    
 }

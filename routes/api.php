@@ -30,8 +30,14 @@ Route::prefix('v1')->group(function () {
 
     // Password Reset Routes
     Route::prefix('password')->group(function () {
+        // token
         Route::post('reset/request', [AuthController::class, 'sendResetLink']);
         Route::post('reset/confirm', [AuthController::class, 'reset']);
+        // code
+        Route::post('reset/app/email', [AuthController::class, 'sendResetCode']);
+        // Route::post('reset/app/code', [AuthController::class, 'sendResetLink']);
+        // Route::post('reset/app/confirm', [AuthController::class, 'sendResetLink']);
+
     });
 
     // Protected Routes (Require API Authentication)
@@ -50,6 +56,7 @@ Route::prefix('v1')->group(function () {
             Route::put('/{task}', [TaskController::class, 'updateTask']); 
             Route::delete('/{task}', [TaskController::class, 'deleteTask']); 
         });
+
     });
 });
 
