@@ -159,6 +159,45 @@ class AuthController extends Controller
     }
 
 
+    public function verifyResetCode(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|exists:password_reset_codes,email',
+            'reset_code' => 'required|numeric|digits:6',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors(), 422);
+        }
+
+        $resetCode = PasswordResetCode::where('email', $request->email)->first();
+
+        // Check if reset code exists and has not expired
+        if (!$resetCode || $resetCode->expires_at < now()) {
+            return $this->error('Invalid or expired reset code.', 400);
+        }
+
+        // Verify the code
+        if (!Hash::check($request->reset_code, $resetCode->reset_code)) {
+            $resetCode->increment('attempts');
+
+            // Check if attempts exceeded limit
+            if ($resetCode->attempts >= 5) {
+                $resetCode->delete(); // Invalidate the reset code
+                return $this->error('Too many attempts. Please request a new code.', 429);
+            }
+
+            return $this->error('Invalid reset code.', 400);
+        }
+
+        // Mark code as used
+        $resetCode->delete();
+
+        return $this->success(null, 'Code verified. Proceed to reset password.');
+    }
+
+
+
     // Method to get authenticated user details
     public function user()
     {

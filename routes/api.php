@@ -35,8 +35,8 @@ Route::prefix('v1')->group(function () {
         Route::post('reset/confirm', [AuthController::class, 'reset']);
         // code
         Route::post('reset/app/email', [AuthController::class, 'sendResetCode']);
-        // Route::post('reset/app/code', [AuthController::class, 'sendResetLink']);
-        // Route::post('reset/app/confirm', [AuthController::class, 'sendResetLink']);
+        Route::post('reset/app/code', [AuthController::class, 'verifyResetCode']);
+        // Route::post('reset/app/confirm', [AuthController::class, '']);
 
     });
 
