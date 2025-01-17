@@ -14,7 +14,6 @@ class CreateUsersTable extends Migration
             $table->string('email')->unique();
             $table->string('password');
             $table->string('avatar')->nullable(); // Profile picture
-            $table->foreignId('role_id')->default(1)->constrained('roles')->onDelete('cascade'); // Foreign key to roles table
             $table->boolean('status')->default(true); // Active or inactive user
             $table->rememberToken();
             $table->timestamps();

@@ -21,7 +21,6 @@ class User extends Authenticatable implements JWTSubject
         'name',
         'email',
         'password',
-        'role_id',
     ];
 
     /**
@@ -63,9 +62,11 @@ class User extends Authenticatable implements JWTSubject
         return [];
     }
 
-    public function role()
+    public function roles()
     {
-        return $this->belongsTo(Role::class, 'role_id');
+        return $this->belongsToMany(Role::class, 'project_role_user')
+                    ->withPivot('project_id', 'team_id')
+                    ->withTimestamps();
     }
 
     public function tasks()
@@ -75,11 +76,19 @@ class User extends Authenticatable implements JWTSubject
                     ->withTimestamps();
     }
 
-    // Get the teams to which the user belongs via task_members pivot table
     public function teams()
     {
-        return $this->belongsToMany(Team::class, 'task_members', 'user_id', 'team_id')
-                    ->withPivot('task_id', 'project_id')
+        return $this->belongsToMany(Team::class, 'project_role_user', 'user_id', 'team_id')
+                    ->withPivot('role_id', 'project_id')
                     ->withTimestamps();
     }
+
+    public function projects()
+    {
+        return $this->belongsToMany(Project::class, 'project_role_user')
+                    ->withPivot('role_id', 'team_id')
+                    ->withTimestamps();
+    }
+
+
 }

@@ -23,13 +23,11 @@ class TeamsSeeder extends Seeder
         // Seed teams for each project
         foreach ($projects as $project) {
             // Pick a random user to assign as the team creator
-            $leader = $users->random();
             $addedBy = $users->random();
 
             // Create a team for the project
             Team::create([
                 'name' => 'Team for ' . $project->name,
-                'leader_id' => $leader->id,
                 'project_id' => $project->id,
                 'added_by' => $addedBy->id,
             ]);

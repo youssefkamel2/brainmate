@@ -26,6 +26,7 @@ class DatabaseSeeder extends Seeder
             TaskNotesSeeder::class,
             ChatsSeeder::class,
             WorkspacesSeeder::class,
+            ProjectRoleUserSeeder::class,
         ]);
     }
 }

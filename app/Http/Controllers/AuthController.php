@@ -44,6 +44,8 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
+        
+
         // Generate a JWT token for the user
         $token = JWTAuth::fromUser($user);
 

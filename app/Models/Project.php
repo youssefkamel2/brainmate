@@ -10,16 +10,23 @@ class Project extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name', 'leader_id', 'start_date', 'end_date', 'description'
+        'name', 'description'
     ];
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'project_role_user')
+                    ->withPivot('role_id', 'team_id')
+                    ->withTimestamps();
+    }
 
     public function tasks()
     {
         return $this->hasMany(Task::class);
     }
 
-    public function leader()
+    public function teams()
     {
-        return $this->belongsTo(User::class, 'leader_id');
+        return $this->hasMany(Team::class);
     }
 }

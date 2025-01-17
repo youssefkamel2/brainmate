@@ -15,17 +15,11 @@ class ProjectsSeeder extends Seeder
 
         Project::create([
             'name' => 'Project 1',
-            'leader_id' => $admin->id,
-            'start_date' => now(),
-            'end_date' => now()->addMonths(3),
             'description' => 'This is a test project for role-based permissions.',
         ]);
 
         Project::create([
             'name' => 'Project 2',
-            'leader_id' => $admin->id,
-            'start_date' => now(),
-            'end_date' => now()->addMonths(2),
             'description' => 'Another project for testing.',
         ]);
     }

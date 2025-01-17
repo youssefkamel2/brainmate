@@ -14,8 +14,7 @@ class Team extends Model
     protected $fillable = [
         'name',
         'leader_id',
-        'created_at',
-        'updated_at',
+        'project_id',
     ];
 
     public function leader()
@@ -31,12 +30,12 @@ class Team extends Model
 
     public function members()
     {
-        return $this->belongsToMany(User::class, 'task_members', 'team_id', 'user_id')
-                    ->withPivot('task_id', 'project_id')
+        return $this->belongsToMany(User::class, 'project_role_user', 'team_id', 'user_id')
+                    ->withPivot('role_id', 'project_id')
                     ->withTimestamps();
     }
     public function project()
     {
-        return $this->belongsTo(Project::class, 'project_id');
+        return $this->belongsTo(Project::class);
     }
 }

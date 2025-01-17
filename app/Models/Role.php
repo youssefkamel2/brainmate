@@ -13,6 +13,8 @@ class Role extends Model
 
     public function users()
     {
-        return $this->belongsToMany(User::class);
+        return $this->belongsToMany(User::class, 'project_role_user')
+                    ->withPivot('project_id', 'team_id')
+                    ->withTimestamps();
     }
 }

@@ -6,15 +6,13 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\welcomeController;
 use App\Http\Controllers\ModelTestController;
-
+use App\Http\Controllers\ProjectController;
 
 // API Version Prefix for Versioning
 Route::prefix('v1')->group(function () {
     
-    Route::get('/', [WelcomeController::class, 'welcome']);
+    // Route::get('/', [WelcomeController::class, 'welcome']);
 
-    // Public Routes
-    Route::get('test-models', [ModelTestController::class, 'testModels']);
 
     // Authentication Routes
     Route::prefix('auth')->group(function () {
@@ -45,6 +43,17 @@ Route::prefix('v1')->group(function () {
         Route::prefix('user')->group(function () {
             Route::get('/', [AuthController::class, 'user']);
             Route::post('logout', [AuthController::class, 'logout']);
+        });
+
+            Route::get('test-models', [ModelTestController::class, 'testModels']);
+
+        // project Routes
+        Route::prefix('projects')->group(function () {
+            Route::post('/create', [Projectcontroller::class, 'createProject']);
+            Route::get('/assigned', [ProjectController::class, 'getUserProjects']); 
+            Route::get('/{projectId}/teams', [ProjectController::class, 'getProjectTeams']);
+
+
         });
 
         // Task Routes

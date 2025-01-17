@@ -11,7 +11,6 @@ class CreateTeamsTable extends Migration
         Schema::create('teams', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->foreignId('leader_id')->constrained('users')->onDelete('cascade'); // Linked user
             $table->foreignId('project_id')->constrained('projects')->onDelete('cascade'); // Linked project
             $table->foreignId('added_by')->constrained('users')->onDelete('cascade'); // User who added the team
             $table->timestamps();
