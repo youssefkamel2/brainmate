@@ -5,6 +5,36 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * App\Models\Chat
+ *
+ * @property int $id
+ * @property int $sender_id
+ * @property int|null $receiver_id
+ * @property int|null $team_id
+ * @property string $message
+ * @property string $type
+ * @property string|null $media
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read mixed $media_url
+ * @property-read \App\Models\User|null $receiver
+ * @property-read \App\Models\User $sender
+ * @property-read \App\Models\Team|null $team
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat query()
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat whereMedia($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat whereMessage($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat whereReceiverId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat whereSenderId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat whereTeamId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat whereType($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Chat whereUpdatedAt($value)
+ * @mixin \Eloquent
+ */
 class Chat extends Model
 {
     use HasFactory;
