@@ -19,17 +19,20 @@ class FavoriteController extends Controller
     public function index()
     {
         $user = Auth::user();
-
-        $favorites = Favorite::with(['note.folder'])
-            ->whereHas('note', function ($query) {
-                $query->whereNull('deleted_at'); // Exclude soft-deleted notes
+    
+        $favoriteNotes = PersonalNote::whereHas('favorites', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
             })
-            ->where('user_id', $user->id)
+            ->with('folder')
+            ->whereNull('deleted_at') 
             ->get();
-
-        return $this->success($favorites, 'Favorite notes retrieved successfully');
+    
+        $favoriteNotes->each(function ($note) use ($user) {
+            $note->isFavorite = true; 
+        });
+    
+        return $this->success($favoriteNotes, 'Favorite notes retrieved successfully');
     }
-
     /**
      * Toggle a note's favorite status for the authenticated user.
      */

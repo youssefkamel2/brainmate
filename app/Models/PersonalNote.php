@@ -38,7 +38,7 @@ class PersonalNote extends Model
      */
     public function favorites()
     {
-        return $this->hasMany(Favorite::class);
+        return $this->hasMany(Favorite::class, 'note_id');
     }
 
     /**
