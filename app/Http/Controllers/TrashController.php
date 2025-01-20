@@ -79,4 +79,38 @@ class TrashController extends Controller
 
         return $this->success(null, 'Note permanently deleted from trash successfully');
     }
+
+    public function deleteAll()
+    {
+        $user = Auth::user();
+    
+        // Debug: Check if the user is authenticated
+        if (!$user) {
+            return $this->error('Unauthorized', 401);
+        }
+    
+        // Debug: Log the user ID
+        \Log::info('User ID: ' . $user->id);
+    
+        // Fetch all trashed notes for the user
+        $trashedNotes = Trash::where('user_id', $user->id)->get();
+    
+        // Debug: Log the number of trashed notes
+        \Log::info('Trashed notes count: ' . $trashedNotes->count());
+    
+        // If no trashed notes exist, return an error
+        if ($trashedNotes->isEmpty()) {
+            return $this->error('No trashed notes found', 404);
+        }
+    
+        // Permanently delete each note and its trash record
+        foreach ($trashedNotes as $trash) {
+            if ($trash->note) {
+                $trash->note()->forceDelete(); // Permanently delete the associated note
+            }
+            $trash->delete(); // Delete the trash record
+        }
+    
+        return $this->success(null, 'All trashed notes permanently deleted successfully');
+    }
 }

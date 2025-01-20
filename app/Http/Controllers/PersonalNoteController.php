@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Trash;
+use App\Models\Favorite;
 use App\Models\PersonalNote;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
@@ -22,6 +23,12 @@ class PersonalNoteController extends Controller
 
         $notes = PersonalNote::where('user_id', $user->id)->with('folder')->get();
 
+        $notes->each(function ($note) use ($user) {
+            $note->isFavorite = Favorite::where('user_id', $user->id)
+                ->where('note_id', $note->id)
+                ->exists();
+        });
+
         return $this->success($notes, 'Personal notes retrieved successfully');
     }
 
@@ -35,7 +42,7 @@ class PersonalNoteController extends Controller
         // Validate the request data
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
-            'content' => 'required|string',
+            'content' => 'nullable|string',
             'folder_id' => 'required|exists:folders,id',
         ]);
 
@@ -61,15 +68,22 @@ class PersonalNoteController extends Controller
     {
         $user = Auth::user();
 
+        // Get the note (including soft-deleted notes)
         $note = PersonalNote::withTrashed()->with('folder')->find($id);
 
         if (!$note) {
             return $this->error('Personal note not found', 404);
         }
 
+        // Check if the note belongs to the authenticated user
         if ($note->user_id !== $user->id) {
             return $this->error('Unauthorized', 403);
         }
+
+        // Add isFavorite field
+        $note->isFavorite = Favorite::where('user_id', $user->id)
+            ->where('note_id', $note->id)
+            ->exists();
 
         return $this->success(['note' => $note], 'Personal note retrieved successfully');
     }
@@ -104,6 +118,10 @@ class PersonalNoteController extends Controller
 
         $note->update($request->all());
 
+        $note->isFavorite = Favorite::where('user_id', $user->id)
+            ->where('note_id', $note->id)
+            ->exists();
+
         return $this->success($note, 'Personal note updated successfully');
     }
 
@@ -113,25 +131,25 @@ class PersonalNoteController extends Controller
     public function delete($id)
     {
         $user = Auth::user();
-    
+
         $note = PersonalNote::find($id);
-    
+
         if (!$note) {
             return $this->error('Personal note not found', 404);
         }
-    
+
         if ($note->user_id !== $user->id) {
             return $this->error('Unauthorized', 403);
         }
-    
+
         // Move the note to the trash
         Trash::create([
             'user_id' => $user->id,
             'note_id' => $note->id,
         ]);
-    
-        $note->delete(); 
-    
+
+        $note->delete();
+
         return $this->success(null, 'Personal note moved to trash successfully');
     }
 
@@ -143,6 +161,12 @@ class PersonalNoteController extends Controller
             ->where('folder_id', $folder_id)
             ->with('folder')
             ->get();
+
+        $notes->each(function ($note) use ($user) {
+            $note->isFavorite = Favorite::where('user_id', $user->id)
+                ->where('note_id', $note->id)
+                ->exists();
+        });
 
         return $this->success($notes, 'Notes in folder retrieved successfully');
     }

@@ -90,6 +90,7 @@ Route::prefix('v1')->group(function () {
         
             // Trash routes
             Route::prefix('trash')->group(function () {
+                Route::delete('/deleteAll', [TrashController::class, 'deleteAll']); 
                 Route::post('/{id}/restore', [TrashController::class, 'restore']); 
                 Route::delete('/{id}', [TrashController::class, 'delete']); 
             });
