@@ -61,7 +61,7 @@ class PersonalNoteController extends Controller
     {
         $user = Auth::user();
 
-        $note = PersonalNote::with('folder')->find($id);
+        $note = PersonalNote::withTrashed()->with('folder')->find($id);
 
         if (!$note) {
             return $this->error('Personal note not found', 404);
