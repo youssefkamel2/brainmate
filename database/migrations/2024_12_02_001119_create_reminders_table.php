@@ -12,6 +12,7 @@ class CreateRemindersTable extends Migration
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('cascade'); // Nullable user_id for custom reminder
             $table->foreignId('task_id')->nullable()->constrained('tasks')->onDelete('cascade'); // Nullable task_id for normal reminder
+            $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('cascade'); // Nullable user_id for custom reminder
             $table->datetime('reminder_time');
             $table->string('message');
             $table->timestamps();

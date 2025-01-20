@@ -131,25 +131,31 @@ class PersonalNoteController extends Controller
     public function delete($id)
     {
         $user = Auth::user();
-
+    
+        // Find the note
         $note = PersonalNote::find($id);
-
+    
         if (!$note) {
             return $this->error('Personal note not found', 404);
         }
-
+    
+        // Check if the note belongs to the authenticated user
         if ($note->user_id !== $user->id) {
             return $this->error('Unauthorized', 403);
         }
-
+    
+        // Delete any associated favorites
+        Favorite::where('note_id', $note->id)->delete();
+    
         // Move the note to the trash
         Trash::create([
             'user_id' => $user->id,
             'note_id' => $note->id,
         ]);
-
+    
+        // Soft delete the note
         $note->delete();
-
+    
         return $this->success(null, 'Personal note moved to trash successfully');
     }
 

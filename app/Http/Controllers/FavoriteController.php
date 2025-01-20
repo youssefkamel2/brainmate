@@ -21,67 +21,63 @@ class FavoriteController extends Controller
         $user = Auth::user();
 
         $favorites = Favorite::with(['note.folder'])
-        ->whereHas('note', function ($query) {
-            $query->whereNull('deleted_at'); // Exclude soft-deleted notes
-        })
-        ->where('user_id', $user->id)
-        ->get();
+            ->whereHas('note', function ($query) {
+                $query->whereNull('deleted_at'); // Exclude soft-deleted notes
+            })
+            ->where('user_id', $user->id)
+            ->get();
 
         return $this->success($favorites, 'Favorite notes retrieved successfully');
     }
 
     /**
-     * Add a note to favorites for the authenticated user.
+     * Toggle a note's favorite status for the authenticated user.
      */
-    public function create(Request $request)
+    public function toggleFavorite(Request $request)
     {
         $user = Auth::user();
 
+        // Validate the request data
         $validator = Validator::make($request->all(), [
             'note_id' => 'required|exists:personal_notes,id',
+            'flag' => 'required|in:0,1', // flag must be 0 or 1
         ]);
 
         if ($validator->fails()) {
             return $this->error($validator->errors(), 422);
         }
 
+        $noteId = $request->note_id;
+        $flag = $request->flag;
+
+        // Check if the note is already in favorites
         $existingFavorite = Favorite::where('user_id', $user->id)
-            ->where('note_id', $request->note_id)
+            ->where('note_id', $noteId)
             ->first();
 
-        if ($existingFavorite) {
-            return $this->error('Note is already in favorites', 400);
+        if ($flag == 1) {
+            // Add to favorites
+            if ($existingFavorite) {
+                return $this->error('Note is already in favorites', 400);
+            }
+
+            $favorite = Favorite::create([
+                'user_id' => $user->id,
+                'note_id' => $noteId,
+            ]);
+
+            $favorite->load(['note.folder']);
+
+            return $this->success($favorite, 'Note added to favorites successfully', 201);
+        } else {
+            // Remove from favorites
+            if (!$existingFavorite) {
+                return $this->error('Note is not in favorites', 400);
+            }
+
+            $existingFavorite->delete();
+
+            return $this->success(null, 'Note removed from favorites successfully');
         }
-
-        $favorite = Favorite::create([
-            'user_id' => $user->id,
-            'note_id' => $request->note_id,
-        ]);
-
-        $favorite->load(['note.folder']);
-
-        return $this->success($favorite, 'Note added to favorites successfully', 201);
-    }
-
-    /**
-     * Remove a note from favorites for the authenticated user.
-     */
-    public function delete($id)
-    {
-        $user = Auth::user();
-
-        $favorite = Favorite::find($id);
-
-        if (!$favorite) {
-            return $this->error('Favorite not found', 404);
-        }
-
-        if ($favorite->user_id !== $user->id) {
-            return $this->error('Unauthorized', 403);
-        }
-
-        $favorite->delete();
-
-        return $this->success(null, 'Note removed from favorites successfully');
     }
 }

@@ -15,7 +15,6 @@ class NotificationsSeeder extends Seeder
         Notification::create([
             'user_id' => $user->id,
             'message' => 'You have a task due tomorrow.',
-            'type' => 'info',
             'read' => false,
         ]);
     }

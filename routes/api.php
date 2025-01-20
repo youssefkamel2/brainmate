@@ -78,14 +78,14 @@ Route::prefix('v1')->group(function () {
                 Route::get('/{folder}', [FolderController::class, 'show']); 
                 Route::put('/{folder}', [FolderController::class, 'update']); 
                 Route::delete('/{folder}', [FolderController::class, 'delete']); 
+                // based on requirement from stupid front end
                 Route::get('/trash/notes', [TrashController::class, 'index']); 
+                Route::get('/favorites/notes', [FavoriteController::class, 'index']); 
             });
         
             // Favorite routes
             Route::prefix('favorites')->group(function () {
-                Route::get('/', [FavoriteController::class, 'index']); 
-                Route::post('/', [FavoriteController::class, 'create']); 
-                Route::delete('/{id}', [FavoriteController::class, 'delete']); 
+                Route::post('/', [FavoriteController::class, 'toggleFavorite']); 
             });
         
             // Trash routes
