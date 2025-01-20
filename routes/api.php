@@ -78,6 +78,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/{folder}', [FolderController::class, 'show']); 
                 Route::put('/{folder}', [FolderController::class, 'update']); 
                 Route::delete('/{folder}', [FolderController::class, 'delete']); 
+                Route::get('/trash/notes', [TrashController::class, 'index']); 
             });
         
             // Favorite routes
@@ -89,7 +90,6 @@ Route::prefix('v1')->group(function () {
         
             // Trash routes
             Route::prefix('trash')->group(function () {
-                Route::get('/', [TrashController::class, 'index']); 
                 Route::post('/{id}/restore', [TrashController::class, 'restore']); 
                 Route::delete('/{id}', [TrashController::class, 'delete']); 
             });
