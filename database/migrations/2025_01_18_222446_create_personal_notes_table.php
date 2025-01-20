@@ -18,7 +18,7 @@ return new class extends Migration
             $table->foreignId('folder_id')->constrained('folders')->onDelete('cascade');
             // $table->unsignedBigInteger('folder_id'); 
             $table->string('title'); 
-            $table->text('content'); 
+            $table->text('content')->nullable(); 
             $table->timestamps();
 
             // $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');

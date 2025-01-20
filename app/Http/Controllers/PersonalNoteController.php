@@ -107,7 +107,7 @@ class PersonalNoteController extends Controller
 
         $validator = Validator::make($request->all(), [
             'title' => 'sometimes|string|max:255',
-            'content' => 'sometimes|string',
+            'content' => 'nullable|string',
             'folder_id' => 'nullable|exists:folders,id',
             'date' => 'sometimes|date',
         ]);
