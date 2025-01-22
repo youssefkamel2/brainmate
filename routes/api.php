@@ -10,6 +10,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\welcomeController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\ModelTestController;
+use App\Http\Controllers\WorkspaceController;
 use App\Http\Controllers\PersonalNoteController;
 
 // API Version Prefix for Versioning
@@ -104,6 +105,8 @@ Route::prefix('v1')->group(function () {
             Route::delete('/{id}', [PersonalNoteController::class, 'delete']); 
         });
 
+        // worksapces
+        Route::get('/workspaces', [WorkspaceController::class, 'index']);
 
     });
 });

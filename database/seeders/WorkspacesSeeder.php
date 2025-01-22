@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Workspace;
+use Illuminate\Database\Seeder;
 
 class WorkspacesSeeder extends Seeder
 {
@@ -12,35 +12,46 @@ class WorkspacesSeeder extends Seeder
      */
     public function run()
     {
-        $workspaces = [
-            [
-                'name' => 'Downtown Workspace',
-                'image' => 'workspaces/downtown.jpg',
-                'location' => '123 Main Street, City Center',
-                'rate' => 4.5,
-                'price' => 50.00,
-                'phone_number' => '555-1234',
-            ],
-            [
-                'name' => 'Suburban Workspace',
-                'image' => 'workspaces/suburban.jpg',
-                'location' => '456 Elm Street, Suburbia',
-                'rate' => 4.0,
-                'price' => 40.00,
-                'phone_number' => '555-5678',
-            ],
-            [
-                'name' => 'Coastal Workspace',
-                'image' => 'workspaces/coastal.jpg',
-                'location' => '789 Beach Drive, Seaside',
-                'rate' => 5.0,
-                'price' => 75.00,
-                'phone_number' => '555-9012',
-            ],
-        ];
+        Workspace::create([
+            'name' => 'Workpair Co',
+            'images' => json_encode([
+                '/images/workspace1-1.jpg',
+                '/images/workspace1-2.jpg',
+                '/images/workspace1-3.jpg',
+            ]),
+            'location' => 'Cairo, Egypt',
+            'map_url' => 'googlemapslocationlink',
+            'phone' => '01145528803',
+            'amenities' => 'wifi . coffee . meeting room',
+            'rating' => 4.9,
+            'price' => 125.00,
+            'description' => 'A modern coworking space with high-speed internet, comfortable seating, and meeting rooms.',
+            'wifi' => true,
+            'coffee' => true,
+            'meetingroom' => true,
+            'silentroom' => false,
+            'amusement' => false,
+        ]);
 
-        foreach ($workspaces as $workspace) {
-            Workspace::create($workspace);
-        }
+        Workspace::create([
+            'name' => 'Creative Space',
+            'images' => json_encode([
+                '/images/workspace2-1.jpg',
+                '/images/workspace2-2.jpg',
+                '/images/workspace2-3.jpg',
+            ]),
+            'location' => 'Alexandria, Egypt',
+            'map_url' => 'googlemapslocationlink',
+            'phone' => '01145528803',
+            'amenities' => 'wifi . printer . lounge',
+            'rating' => 4.7,
+            'price' => 150.00,
+            'description' => 'A creative hub for freelancers and small teams, offering a relaxed atmosphere and printing services.',
+            'wifi' => true,
+            'coffee' => false,
+            'meetingroom' => false,
+            'silentroom' => true,
+            'amusement' => true,
+        ]);
     }
 }
