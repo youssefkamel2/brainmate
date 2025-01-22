@@ -45,12 +45,13 @@ Route::prefix('v1')->group(function () {
 
     // Protected Routes (Require API Authentication)
     Route::middleware('auth:api')->group(function () {
+        
+        Route::get('test-models', [ModelTestController::class, 'testModels']);
+
         Route::prefix('user')->group(function () {
             Route::get('/', [AuthController::class, 'user']);
             Route::post('logout', [AuthController::class, 'logout']);
         });
-
-            Route::get('test-models', [ModelTestController::class, 'testModels']);
 
         // project Routes
         Route::prefix('projects')->group(function () {
@@ -106,7 +107,11 @@ Route::prefix('v1')->group(function () {
         });
 
         // worksapces
-        Route::get('/workspaces', [WorkspaceController::class, 'index']);
+        Route::prefix('workspaces')->group(function () {
+            Route::get('/', [WorkspaceController::class, 'index']);
+            Route::post('/', [WorkspaceController::class, 'create']);
+        });
+
 
     });
 });
