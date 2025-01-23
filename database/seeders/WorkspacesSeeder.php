@@ -14,11 +14,7 @@ class WorkspacesSeeder extends Seeder
     {
         Workspace::create([
             'name' => 'Workpair Co',
-            'images' => json_encode([
-                'uploads/workspaces/workspace.jpg',
-                'uploads/workspaces/workspace.jpg',
-                'uploads/workspaces/workspace.jpg',
-            ]),
+            'images' => 'workspace.jpg,workspace.jpg,workspace.jpg', // Comma-separated string
             'location' => 'Cairo, Egypt',
             'map_url' => 'googlemapslocationlink',
             'phone' => '01145528803',
@@ -32,14 +28,10 @@ class WorkspacesSeeder extends Seeder
             'silentroom' => false,
             'amusement' => false,
         ]);
-
+        
         Workspace::create([
             'name' => 'Creative Space',
-            'images' => json_encode([
-                'uploads/workspaces/workspace.jpg',
-                'uploads/workspaces/workspace.jpg',
-                'uploads/workspaces/workspace.jpg',
-            ]),
+            'images' => 'workspace.jpg,workspace.jpg,workspace.jpg', // Comma-separated string
             'location' => 'Alexandria, Egypt',
             'map_url' => 'googlemapslocationlink',
             'phone' => '01145528803',

@@ -11,7 +11,7 @@ class Workspace extends Model
 
     protected $fillable = [
         'name',
-        'images',
+        'images', // Comma-separated string of image paths
         'location',
         'map_url',
         'phone',
@@ -27,7 +27,6 @@ class Workspace extends Model
     ];
 
     protected $casts = [
-        'images' => 'array', // Automatically decode JSON to array
         'wifi' => 'boolean',
         'coffee' => 'boolean',
         'meetingroom' => 'boolean',
@@ -40,11 +39,16 @@ class Workspace extends Model
      */
     public function getImagesAttribute($value)
     {
-        if (is_array($value)) {
-            return array_map(function ($image) {
-                return asset('uploads/workspaces/' . $image); // Generate full URL
-            }, $value);
+        if (empty($value)) {
+            return [];
         }
-        return [];
+
+        // Split the comma-separated string into an array
+        $imagePaths = explode(',', $value);
+
+        // Generate full URLs for the images
+        return array_map(function ($image) {
+            return asset('uploads/workspaces/' . trim($image)); // Trim to remove any extra spaces
+        }, $imagePaths);
     }
 }

@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Workspace;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class WorkspaceController extends Controller
@@ -28,7 +27,6 @@ class WorkspaceController extends Controller
     public function create(Request $request)
     {
         // Validate the request data
-
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'images' => 'nullable|array',
@@ -64,7 +62,7 @@ class WorkspaceController extends Controller
         // Create the workspace
         $workspace = Workspace::create([
             'name' => $request->name,
-            'images' => json_encode($imagePaths), // Store image paths as JSON
+            'images' => implode(',', $imagePaths), // Store image paths as a comma-separated string
             'location' => $request->location,
             'map_url' => $request->map_url,
             'phone' => $request->phone,
