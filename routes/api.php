@@ -114,9 +114,9 @@ Route::prefix('v1')->group(function () {
 
         // profile
         Route::prefix('profile')->group(function () {
-            Route::get('/', [UserController::class, 'getProfile']); 
-            Route::put('/', [UserController::class, 'updateProfile']); 
-            Route::put('/password', [UserController::class, 'updatePassword']); 
+            Route::get('/', [UserController::class, 'getProfile']);
+            Route::put('/', [UserController::class, 'updateProfile']);
+            Route::put('/password', [UserController::class, 'updatePassword']);
         });
     });
 });

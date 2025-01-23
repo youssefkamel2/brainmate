@@ -47,14 +47,17 @@ class UserController extends Controller
             'name' => 'sometimes|string|max:255',
             'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
             'phone' => 'nullable|string|max:20',
-            'gender' => 'nullable|string|in:Male,Female,Other', // New: Gender validation
-            'birthdate' => 'nullable|date', // New: Birthdate validation
-            'bio' => 'nullable|string|max:500', // New: Bio validation
+            'gender' => 'nullable|string|in:Male,Female,Other',
+            'birthdate' => 'nullable|date',
+            'bio' => 'nullable|string|max:500',
             'position' => 'sometimes|string|max:255',
             'level' => 'sometimes|string|max:255',
-            'skills' => 'required|array', // Allow skills to be an array
-            'skills.*' => 'string|max:255', // Each skill must be a string
-            'social' => 'nullable|string',
+            'skills' => 'nullable|array',
+            'skills.*' => 'string|max:255',
+            'facebook' => 'nullable|string|max:255', // New: Facebook link
+            'instagram' => 'nullable|string|max:255', // New: Instagram link
+            'linkedin' => 'nullable|string|max:255', // New: LinkedIn link
+            'website' => 'nullable|string|max:255', // New: Website link
             'experience_years' => 'sometimes|integer|min:0',
         ]);
     
@@ -62,28 +65,35 @@ class UserController extends Controller
             return $this->error($validator->errors(), 422);
         }
     
-        $skills = null;
-    
-        if ($request->has('skills')) {
-            $skills = $request->skills;
-            if (is_string($skills)) {
-                $skills = explode(',', $skills);
-            }
+        // Normalize the skills field
+        $skills = $request->skills;
+        if (is_string($skills)) {
+            $skills = explode(',', $skills);
         }
     
+        // Prepare the social field
+        $social = [
+            'facebook' => $request->facebook ?? $user->social['facebook'] ?? null,
+            'instagram' => $request->instagram ?? $user->social['instagram'] ?? null,
+            'linkedin' => $request->linkedin ?? $user->social['linkedin'] ?? null,
+            'website' => $request->website ?? $user->social['website'] ?? null,
+        ];
+    
+        // Update the user's profile
         $user->update([
             'name' => $request->input('name', $user->name),
             'email' => $request->input('email', $user->email),
             'phone' => $request->input('phone', $user->phone),
-            'gender' => $request->input('gender', $user->gender), // New: Gender field
-            'birthdate' => $request->input('birthdate', $user->birthdate), // New: Birthdate field
-            'bio' => $request->input('bio', $user->bio), // New: Bio field
+            'gender' => $request->input('gender', $user->gender),
+            'birthdate' => $request->input('birthdate', $user->birthdate),
+            'bio' => $request->input('bio', $user->bio),
             'position' => $request->input('position', $user->position),
             'level' => $request->input('level', $user->level),
-            'skills' => $skills ? implode(',', $skills) : $user->skills, // Store as comma-separated string
-            'social' => $request->input('social', $user->social),
+            'skills' => $skills ? implode(',', $skills) : $user->skills,
+            'social' => $social, // The mutator will handle the conversion
             'experience_years' => $request->input('experience_years', $user->experience_years),
         ]);
+    
     
         return $this->success([
             'user' => $user,

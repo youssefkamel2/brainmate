@@ -24,10 +24,7 @@ class AuthController extends Controller
 
     // Register method
     public function register(Request $request)
-    {
-        // Debug the request data
-        \Log::info('Registration Request Data:', $request->all());
-    
+    {    
         // Validate the request
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
@@ -41,7 +38,10 @@ class AuthController extends Controller
             'level' => 'nullable|string|max:255',
             'skills' => 'nullable|array',
             'skills.*' => 'string|max:255',
-            'social' => 'nullable|string', // Ensure this is validated
+            'facebook' => 'nullable|string|max:255', // New: Facebook link
+            'instagram' => 'nullable|string|max:255', // New: Instagram link
+            'linkedin' => 'nullable|string|max:255', // New: LinkedIn link
+            'website' => 'nullable|string|max:255', // New: Website link
             'experience_years' => 'nullable|integer|min:0',
         ]);
     
@@ -56,11 +56,17 @@ class AuthController extends Controller
             $skills = explode(',', $skills);
         }
     
-        // Debug the social field
-        \Log::info('Social Field:', ['social' => $request->social]);
+        // Prepare the social field
+        $social = [
+            'facebook' => $request->facebook ?? null,
+            'instagram' => $request->instagram ?? null,
+            'linkedin' => $request->linkedin ?? null,
+            'website' => $request->website ?? null,
+        ];
+    
     
         // Create a new user
-        $userData = [
+        $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
@@ -71,20 +77,9 @@ class AuthController extends Controller
             'position' => $request->position,
             'level' => $request->level,
             'skills' => $skills ? implode(',', $skills) : null,
-            'social' => $request->social, // Ensure this is included
+            'social' => $social, // The mutator will handle the conversion
             'experience_years' => $request->experience_years,
-        ];
-    
-        // Debug the user data before creation
-        \Log::info('User Data Before Creation:', $userData);
-    
-        $user = User::create($userData);
-    
-        // Debug the created user
-        \Log::info('Created User:', $user->toArray());
-    
-        // Debug the social field in the created user
-        \Log::info('Social Field in Created User:', ['social' => $user->social]);
+        ]);
     
         // Generate a JWT token for the user
         $token = JWTAuth::fromUser($user);

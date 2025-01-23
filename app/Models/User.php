@@ -69,43 +69,62 @@ class User extends Authenticatable implements JWTSubject
     }
 
 
+    /**
+     * Convert the social field from text to an array.
+     */
     public function getSocialAttribute($value)
-{
-    // Debug the raw social field
-    // \Log::info('Raw Social Field:', ['social' => $value]);
+    {
+        if (empty($value)) {
+            return [
+                'facebook' => null,
+                'instagram' => null,
+                'linkedin' => null,
+                'website' => null,
+            ];
+        }
 
-    if (empty($value)) {
-        // \Log::info('Social Field is Empty');
-        return [];
+        // Split the comma-separated string into individual links
+        $links = explode(',', $value);
+
+        // Convert links into a key-value array
+        $socialLinks = [
+            'facebook' => null,
+            'instagram' => null,
+            'linkedin' => null,
+            'website' => null,
+        ];
+
+        foreach ($links as $link) {
+            $parts = explode(':', $link, 2); // Split by the first colon
+            if (count($parts) === 2) {
+                $key = trim($parts[0]); // Key (e.g., "facebook")
+                $value = trim($parts[1]); // Value (e.g., "https://facebook.com/johndoe")
+                if (array_key_exists($key, $socialLinks)) {
+                    $socialLinks[$key] = $value;
+                }
+            }
+        }
+
+        return $socialLinks;
     }
 
-    // Split the comma-separated string into individual links
-    $links = explode(',', $value);
-
-    // Debug the split links
-    // \Log::info('Split Links:', ['links' => $links]);
-
-    // Convert links into a key-value array
-    $socialLinks = [];
-    foreach ($links as $link) {
-        // Split by the first occurrence of ':'
-        $parts = explode(':', $link, 2); // Limit to 2 parts
-
-        // Ensure exactly 2 parts (key and value)
-        if (count($parts) === 2) {
-            $key = trim($parts[0]); // Key (e.g., "github")
-            $value = trim($parts[1]); // Value (e.g., "https://github.com/alicej")
-            $socialLinks[$key] = $value;
+    /**
+     * Convert the social field from an array to text.
+     */
+    public function setSocialAttribute($value)
+    {
+        if (is_array($value)) {
+            $socialLinks = [];
+            foreach ($value as $key => $link) {
+                if (!empty($link)) {
+                    $socialLinks[] = "$key:$link";
+                }
+            }
+            $this->attributes['social'] = implode(',', $socialLinks);
         } else {
-            \Log::warning('Invalid Social Link Format:', ['link' => $link]);
+            $this->attributes['social'] = $value;
         }
     }
-
-    // Debug the processed social links
-    // \Log::info('Processed Social Links:', ['socialLinks' => $socialLinks]);
-
-    return $socialLinks;
-}
 
     /**
      * Get the identifier that will be stored in the JWT subject claim.
