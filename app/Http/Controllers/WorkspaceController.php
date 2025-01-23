@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Workspace;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class WorkspaceController extends Controller
@@ -26,10 +27,12 @@ class WorkspaceController extends Controller
      */
     public function create(Request $request)
     {
+        // Validate the request data
 
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048', // Validate each image
             'location' => 'required|string|max:255',
             'map_url' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:20',
@@ -48,11 +51,20 @@ class WorkspaceController extends Controller
             return $this->error($validator->errors(), 422);
         }
 
+        // Upload images and store their paths
+        $imagePaths = [];
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $image) {
+                $fileName = time() . '_' . $image->getClientOriginalName(); // Unique file name
+                $image->move(public_path('uploads/workspaces'), $fileName); // Store in public/uploads/workspaces
+                $imagePaths[] = $fileName;
+            }
+        }
 
         // Create the workspace
         $workspace = Workspace::create([
             'name' => $request->name,
-            'images' => json_encode($request->images), // Encode images array to JSON string
+            'images' => json_encode($imagePaths), // Store image paths as JSON
             'location' => $request->location,
             'map_url' => $request->map_url,
             'phone' => $request->phone,
