@@ -42,10 +42,14 @@ class UserController extends Controller
     {
         $user = Auth::user();
     
+        if ($request->has('gender')) {
+            $request->merge(['gender' => ucfirst(strtolower($request->gender))]);
+        }
+
         // Validate the request data
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
+            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->email,
             'phone' => 'nullable|string|max:20',
             'gender' => 'nullable|string|in:Male,Female,Other',
             'birthdate' => 'nullable|date',
