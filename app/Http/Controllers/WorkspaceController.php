@@ -31,6 +31,7 @@ class WorkspaceController extends Controller
             'name' => 'required|string|max:255',
             'images' => 'nullable|array',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048', // Validate each image
+            'social' => 'nullable|string', // Comma-separated string of social media links
             'location' => 'required|string|max:255',
             'map_url' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:20',
@@ -63,6 +64,7 @@ class WorkspaceController extends Controller
         $workspace = Workspace::create([
             'name' => $request->name,
             'images' => implode(',', $imagePaths), // Store image paths as a comma-separated string
+            'social' => $request->social, // Store social media links as a comma-separated string
             'location' => $request->location,
             'map_url' => $request->map_url,
             'phone' => $request->phone,

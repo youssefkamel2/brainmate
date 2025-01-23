@@ -12,6 +12,7 @@ class Workspace extends Model
     protected $fillable = [
         'name',
         'images', // Comma-separated string of image paths
+        'social', // Comma-separated string of image paths
         'location',
         'map_url',
         'phone',
@@ -50,5 +51,15 @@ class Workspace extends Model
         return array_map(function ($image) {
             return asset('uploads/workspaces/' . trim($image)); // Trim to remove any extra spaces
         }, $imagePaths);
+    }
+
+    public function getSocialAttribute($value)
+    {
+        if (empty($value)) {
+            return [];
+        }
+
+        // Split the comma-separated string into an array
+        return array_map('trim', explode(',', $value));
     }
 }

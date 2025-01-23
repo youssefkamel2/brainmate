@@ -2,43 +2,36 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\User;
-use App\Models\Role;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class UsersSeeder extends Seeder
 {
     public function run()
     {
-
-
-        // Create Admin user
         User::create([
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'password' => bcrypt('password'),
-        ]);
-
-        // Create Manager user
-        User::create([
-            'name' => 'Manager User',
-            'email' => 'manager@example.com',
-            'password' => bcrypt('password'),
-        ]);
-
-        // Create Leader user
-        User::create([
-            'name' => 'Leader User',
-            'email' => 'leader@example.com',
-            'password' => bcrypt('password'),
-        ]);
-
-        // Create Member user
-        User::create([
-            'name' => 'Member User',
+            'name' => 'John Doe',
             'email' => 'member@example.com',
-            'password' => bcrypt('password'),
+            'password' => Hash::make('password'),
+            'avatar' => 'avatars/john.jpg',
+            'status' => true,
+            'position' => 'Front-end Developer',
+            'level' => 'Senior',
+            'skills' => 'JavaScript,React,CSS',
+            'experience_years' => 5,
+        ]);
+
+        User::create([
+            'name' => 'Jane Smith',
+            'email' => 'jane.smith@example.com',
+            'password' => Hash::make('password'),
+            'avatar' => 'avatars/jane.jpg',
+            'status' => true,
+            'position' => 'Data Engineer',
+            'level' => 'Mid-level',
+            'skills' => 'php,React,python',
+            'experience_years' => 3,
         ]);
     }
 }

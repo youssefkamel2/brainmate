@@ -10,45 +10,6 @@ use Tymon\JWTAuth\Contracts\JWTSubject;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-
-/**
- * App\Models\User
- *
- * @property int $id
- * @property string $name
- * @property string $email
- * @property string $password
- * @property string $avatar
- * @property bool $status
- * @property \Illuminate\Support\Carbon $created_at
- * @property \Illuminate\Support\Carbon $updated_at
- * @property-read Collection|Role[] $roles
- * @property-read Collection|Project[] $projects
- * @property-read Collection|Team[] $teams
- * @property string|null $remember_token
- * @property-read \Illuminate\Notifications\DatabaseNotificationCollection<int, \Illuminate\Notifications\DatabaseNotification> $notifications
- * @property-read int|null $notifications_count
- * @property-read int|null $projects_count
- * @property-read int|null $roles_count
- * @property-read Collection<int, \App\Models\Task> $tasks
- * @property-read int|null $tasks_count
- * @property-read int|null $teams_count
- * @method static \Database\Factories\UserFactory factory($count = null, $state = [])
- * @method static \Illuminate\Database\Eloquent\Builder|User newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|User newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|User query()
- * @method static \Illuminate\Database\Eloquent\Builder|User whereAvatar($value)
- * @method static \Illuminate\Database\Eloquent\Builder|User whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|User whereEmail($value)
- * @method static \Illuminate\Database\Eloquent\Builder|User whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|User whereName($value)
- * @method static \Illuminate\Database\Eloquent\Builder|User wherePassword($value)
- * @method static \Illuminate\Database\Eloquent\Builder|User whereRememberToken($value)
- * @method static \Illuminate\Database\Eloquent\Builder|User whereStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder|User whereUpdatedAt($value)
- * @mixin \Eloquent
- */
-
 class User extends Authenticatable implements JWTSubject
 {
     use HasFactory, Notifiable;
@@ -62,6 +23,14 @@ class User extends Authenticatable implements JWTSubject
         'name',
         'email',
         'password',
+        'avatar',
+        'status',
+        'position', // Front-end, Back-end, Data Engineer, etc.
+        'level', // Junior, Mid-level, Senior
+        'skills', // Comma-separated string of skills
+        'social', // Comma-separated string of social links
+        'experience_years', // Years of experience
+        'is_available', // Availability for new tasks
     ];
 
     /**
@@ -81,7 +50,28 @@ class User extends Authenticatable implements JWTSubject
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'status' => 'boolean',
     ];
+
+    public function getSkillsAttribute($value)
+    {
+        if (empty($value)) {
+            return [];
+        }
+
+        // Convert comma-separated string to array
+        return explode(',', $value);
+    }
+
+    public function getSocialAttribute($value)
+    {
+        if (empty($value)) {
+            return [];
+        }
+
+        // Convert comma-separated string to array
+        return explode(',', $value);
+    }
 
     /**
      * Get the identifier that will be stored in the JWT subject claim.
@@ -125,6 +115,14 @@ class User extends Authenticatable implements JWTSubject
         return $this->belongsToMany(Task::class, 'task_members', 'user_id', 'task_id')
             ->withPivot('team_id', 'project_id')
             ->withTimestamps();
+    }
+
+    /**
+     * Get the task members associated with the user.
+     */
+    public function taskMembers()
+    {
+        return $this->hasMany(TaskMember::class, 'user_id');
     }
 
     /**

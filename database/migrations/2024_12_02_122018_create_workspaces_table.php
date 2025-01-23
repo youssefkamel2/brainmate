@@ -15,6 +15,7 @@ class CreateWorkspacesTable extends Migration
             $table->id();
             $table->string('name');
             $table->text('images')->nullable(); // Changed from json to text
+            $table->text('social')->nullable(); // Changed from json to text
             $table->string('location');
             $table->string('map_url')->nullable();
             $table->string('phone')->nullable();

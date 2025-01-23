@@ -13,8 +13,13 @@ class CreateUsersTable extends Migration
             $table->string('name');
             $table->string('email')->unique();
             $table->string('password');
-            $table->string('avatar')->nullable(); // Profile picture
-            $table->boolean('status')->default(true); // Active or inactive user
+            $table->string('avatar')->nullable(); 
+            $table->boolean('status')->default(true); 
+            $table->string('position')->nullable(); // Front-end, Back-end, Data Engineer, etc.
+            $table->string('level')->nullable(); // Junior, Mid-level, Senior
+            $table->text('skills')->nullable(); // Store skills as plain text (comma-separated)
+            $table->text('social')->nullable();
+            $table->integer('experience_years')->nullable(); // Years of experience
             $table->rememberToken();
             $table->timestamps();
         });

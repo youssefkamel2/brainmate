@@ -30,25 +30,41 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:6|confirmed',
+            'position' => 'nullable|string|max:255',
+            'level' => 'nullable|string|max:255',
+            'skills' => 'nullable|array', // Allow skills to be an array
+            'skills.*' => 'string|max:255', // Each skill must be a string
+            'social' => 'nullable|string', // New: Comma-separated string of social media links
+            'experience_years' => 'nullable|integer|min:0',
         ]);
-
+    
         // Return validation errors if they exist
         if ($validator->fails()) {
             return $this->error($validator->errors(), 422);
         }
-
+    
+        // Normalize the skills field
+        $skills = $request->skills;
+        if (is_string($skills)) {
+            // If skills is a string, convert it to an array
+            $skills = explode(',', $skills);
+        }
+    
         // Create a new user
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'position' => $request->position,
+            'level' => $request->level,
+            'skills' => $skills ? implode(',', $skills) : null, // Store as comma-separated string
+            'social' => $request->social, // New: Store social media links as comma-separated string
+            'experience_years' => $request->experience_years,
         ]);
-
-        
-
+    
         // Generate a JWT token for the user
         $token = JWTAuth::fromUser($user);
-
+    
         // Return success response with user data and token
         return $this->success([
             'user' => $user,
