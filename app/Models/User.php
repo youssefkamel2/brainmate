@@ -24,17 +24,17 @@ class User extends Authenticatable implements JWTSubject
         'email',
         'password',
         'phone',
-        'gender', // New: Gender field
-        'birthdate', // New: Birthdate field
-        'bio', // New: Bio field
+        'gender',
+        'birthdate',
+        'bio',
         'avatar',
         'status',
-        'position', // Front-end, Back-end, Data Engineer, etc.
-        'level', // Junior, Mid-level, Senior
-        'skills', // Comma-separated string of skills
-        'social', // Comma-separated string of social links
-        'experience_years', // Years of experience
-        'is_available', // Availability for new tasks
+        'position',
+        'level',
+        'skills',
+        'social', // Ensure this is included
+        'experience_years',
+        'is_available',
     ];
 
     /**
@@ -55,6 +55,7 @@ class User extends Authenticatable implements JWTSubject
     protected $casts = [
         'email_verified_at' => 'datetime',
         'status' => 'boolean',
+        'birthdate' => 'date',
     ];
 
     public function getSkillsAttribute($value)
@@ -67,15 +68,44 @@ class User extends Authenticatable implements JWTSubject
         return explode(',', $value);
     }
 
-    public function getSocialAttribute($value)
-    {
-        if (empty($value)) {
-            return [];
-        }
 
-        // Convert comma-separated string to array
-        return explode(',', $value);
+    public function getSocialAttribute($value)
+{
+    // Debug the raw social field
+    // \Log::info('Raw Social Field:', ['social' => $value]);
+
+    if (empty($value)) {
+        // \Log::info('Social Field is Empty');
+        return [];
     }
+
+    // Split the comma-separated string into individual links
+    $links = explode(',', $value);
+
+    // Debug the split links
+    // \Log::info('Split Links:', ['links' => $links]);
+
+    // Convert links into a key-value array
+    $socialLinks = [];
+    foreach ($links as $link) {
+        // Split by the first occurrence of ':'
+        $parts = explode(':', $link, 2); // Limit to 2 parts
+
+        // Ensure exactly 2 parts (key and value)
+        if (count($parts) === 2) {
+            $key = trim($parts[0]); // Key (e.g., "github")
+            $value = trim($parts[1]); // Value (e.g., "https://github.com/alicej")
+            $socialLinks[$key] = $value;
+        } else {
+            \Log::warning('Invalid Social Link Format:', ['link' => $link]);
+        }
+    }
+
+    // Debug the processed social links
+    // \Log::info('Processed Social Links:', ['socialLinks' => $socialLinks]);
+
+    return $socialLinks;
+}
 
     /**
      * Get the identifier that will be stored in the JWT subject claim.

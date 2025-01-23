@@ -25,20 +25,23 @@ class AuthController extends Controller
     // Register method
     public function register(Request $request)
     {
+        // Debug the request data
+        \Log::info('Registration Request Data:', $request->all());
+    
         // Validate the request
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:6|confirmed',
             'phone' => 'nullable|string|max:20',
-            'gender' => 'nullable|string|in:Male,Female,Other', // New: Gender validation
-            'birthdate' => 'nullable|date', // New: Birthdate validation
-            'bio' => 'nullable|string|max:500', // New: Bio validation
+            'gender' => 'nullable|string|in:Male,Female,Other',
+            'birthdate' => 'nullable|date',
+            'bio' => 'nullable|string|max:500',
             'position' => 'nullable|string|max:255',
             'level' => 'nullable|string|max:255',
-            'skills' => 'nullable|array', // Allow skills to be an array
-            'skills.*' => 'string|max:255', // Each skill must be a string
-            'social' => 'nullable|string', // New: Comma-separated string of social media links
+            'skills' => 'nullable|array',
+            'skills.*' => 'string|max:255',
+            'social' => 'nullable|string', // Ensure this is validated
             'experience_years' => 'nullable|integer|min:0',
         ]);
     
@@ -50,25 +53,38 @@ class AuthController extends Controller
         // Normalize the skills field
         $skills = $request->skills;
         if (is_string($skills)) {
-            // If skills is a string, convert it to an array
             $skills = explode(',', $skills);
         }
     
+        // Debug the social field
+        \Log::info('Social Field:', ['social' => $request->social]);
+    
         // Create a new user
-        $user = User::create([
+        $userData = [
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'phone' => $request->phone,
-            'gender' => $request->gender, // New: Gender field
-            'birthdate' => $request->birthdate, // New: Birthdate field
-            'bio' => $request->bio, // New: Bio field
+            'gender' => $request->gender,
+            'birthdate' => $request->birthdate,
+            'bio' => $request->bio,
             'position' => $request->position,
             'level' => $request->level,
-            'skills' => $skills ? implode(',', $skills) : null, // Store as comma-separated string
-            'social' => $request->social, // New: Store social media links as comma-separated string
+            'skills' => $skills ? implode(',', $skills) : null,
+            'social' => $request->social, // Ensure this is included
             'experience_years' => $request->experience_years,
-        ]);
+        ];
+    
+        // Debug the user data before creation
+        \Log::info('User Data Before Creation:', $userData);
+    
+        $user = User::create($userData);
+    
+        // Debug the created user
+        \Log::info('Created User:', $user->toArray());
+    
+        // Debug the social field in the created user
+        \Log::info('Social Field in Created User:', ['social' => $user->social]);
     
         // Generate a JWT token for the user
         $token = JWTAuth::fromUser($user);

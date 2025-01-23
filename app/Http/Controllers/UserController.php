@@ -20,22 +20,21 @@ class UserController extends Controller
     public function getProfile()
     {
         $user = Auth::user();
-    
+        
         $numberOfCompletedTasks = $user->tasks()->where('status', '1')->count();
-    
+        
         $numberOfTeams = $user->taskMembers()->distinct('team_id')->count('team_id');
-    
+        
         $numberOfProjects = $user->taskMembers()->distinct('project_id')->count('project_id');
-    
+        
         $user->number_of_completed_tasks = $numberOfCompletedTasks;
         $user->number_of_teams = $numberOfTeams;
         $user->number_of_projects = $numberOfProjects;
-    
+        
         return $this->success([
             'user' => $user,
         ], 'User profile retrieved successfully.');
     }
-
     /**
      * Update the authenticated user's profile.
      */

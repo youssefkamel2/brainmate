@@ -24,6 +24,7 @@ class UsersSeeder extends Seeder
             'level' => 'Senior',
             'skills' => 'JavaScript,React,CSS',
             'experience_years' => 5,
+            'social' => 'facebook:https://facebook.com/johndoe,linkedin:https://linkedin.com/in/johndoe', // New: Social field
         ]);
 
         User::create([
@@ -40,6 +41,7 @@ class UsersSeeder extends Seeder
             'level' => 'Mid-level',
             'skills' => 'php,React,python',
             'experience_years' => 3,
+            'social' => 'facebook:https://facebook.com/johndoe,linkedin:https://linkedin.com/in/johndoe', // New: Social field
         ]);
     }
 }
