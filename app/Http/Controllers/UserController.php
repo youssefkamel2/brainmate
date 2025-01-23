@@ -47,6 +47,10 @@ class UserController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
             'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
+            'phone' => 'nullable|string|max:20',
+            'gender' => 'nullable|string|in:Male,Female,Other', // New: Gender validation
+            'birthdate' => 'nullable|date', // New: Birthdate validation
+            'bio' => 'nullable|string|max:500', // New: Bio validation
             'position' => 'sometimes|string|max:255',
             'level' => 'sometimes|string|max:255',
             'skills' => 'required|array', // Allow skills to be an array
@@ -71,6 +75,10 @@ class UserController extends Controller
         $user->update([
             'name' => $request->input('name', $user->name),
             'email' => $request->input('email', $user->email),
+            'phone' => $request->input('phone', $user->phone),
+            'gender' => $request->input('gender', $user->gender), // New: Gender field
+            'birthdate' => $request->input('birthdate', $user->birthdate), // New: Birthdate field
+            'bio' => $request->input('bio', $user->bio), // New: Bio field
             'position' => $request->input('position', $user->position),
             'level' => $request->input('level', $user->level),
             'skills' => $skills ? implode(',', $skills) : $user->skills, // Store as comma-separated string

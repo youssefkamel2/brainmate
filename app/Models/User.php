@@ -23,6 +23,10 @@ class User extends Authenticatable implements JWTSubject
         'name',
         'email',
         'password',
+        'phone',
+        'gender', // New: Gender field
+        'birthdate', // New: Birthdate field
+        'bio', // New: Bio field
         'avatar',
         'status',
         'position', // Front-end, Back-end, Data Engineer, etc.

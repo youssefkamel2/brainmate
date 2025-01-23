@@ -30,6 +30,10 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:6|confirmed',
+            'phone' => 'nullable|string|max:20',
+            'gender' => 'nullable|string|in:Male,Female,Other', // New: Gender validation
+            'birthdate' => 'nullable|date', // New: Birthdate validation
+            'bio' => 'nullable|string|max:500', // New: Bio validation
             'position' => 'nullable|string|max:255',
             'level' => 'nullable|string|max:255',
             'skills' => 'nullable|array', // Allow skills to be an array
@@ -55,6 +59,10 @@ class AuthController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'phone' => $request->phone,
+            'gender' => $request->gender, // New: Gender field
+            'birthdate' => $request->birthdate, // New: Birthdate field
+            'bio' => $request->bio, // New: Bio field
             'position' => $request->position,
             'level' => $request->level,
             'skills' => $skills ? implode(',', $skills) : null, // Store as comma-separated string

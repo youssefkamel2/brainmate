@@ -13,6 +13,10 @@ class UsersSeeder extends Seeder
         User::create([
             'name' => 'John Doe',
             'email' => 'member@example.com',
+            'phone' => '01284251988',
+            'gender' => 'Male', // New: Gender field
+            'birthdate' => '1990-01-01', // New: Birthdate field
+            'bio' => 'A passionate developer with 10+ years of experience.', // New: Bio field
             'password' => Hash::make('password'),
             'avatar' => 'avatars/john.jpg',
             'status' => true,
@@ -25,6 +29,10 @@ class UsersSeeder extends Seeder
         User::create([
             'name' => 'Jane Smith',
             'email' => 'jane.smith@example.com',
+            'phone' => '01284251988',
+            'gender' => 'Male', // New: Gender field
+            'birthdate' => '1990-01-01', // New: Birthdate field
+            'bio' => 'A passionate developer with 10+ years of experience.', // New: Bio field
             'password' => Hash::make('password'),
             'avatar' => 'avatars/jane.jpg',
             'status' => true,
