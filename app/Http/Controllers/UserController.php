@@ -49,7 +49,7 @@ class UserController extends Controller
         // Validate the request data
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
-            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->email,
+            'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id, 
             'phone' => 'nullable|string|max:20',
             'gender' => 'nullable|string|in:Male,Female,Other',
             'birthdate' => 'nullable|date',
