@@ -309,7 +309,6 @@ class AuthController extends Controller
                 ['email' => $googleUser->getEmail()],
                 [
                     'name' => $googleUser->getName(),
-                    'password' => bcrypt(Str::random(16)),
                 ]
             );
 
