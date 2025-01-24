@@ -303,28 +303,19 @@ class AuthController extends Controller
     {
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
-    
+
             // Your logic to find or create the user in your database
             $user = User::firstOrCreate(
                 ['email' => $googleUser->getEmail()],
                 [
                     'name' => $googleUser->getName(),
-                    // Do not set a password for Google-authenticated users
-                    'password' => null, // Explicitly set password to null
+                    'password' => bcrypt(Str::random(16)),
                 ]
             );
-    
-            // If the user already exists, ensure the password remains null
-            if (!$user->wasRecentlyCreated && !is_null($user->password)) {
-                // If the user was not created via Google earlier, set the password to null
-                $user->update([
-                    'password' => null,
-                ]);
-            }
-    
+
             // Generate JWT for the user
             $token = JWTAuth::fromUser($user);
-    
+
             // Redirect to React frontend with token
             $frontendUrl = env('FRONTEND_URL', 'https://brainmate.vercel.app/login');
             return redirect()->to("{$frontendUrl}?token={$token}");
