@@ -29,7 +29,7 @@ class AuthController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6|confirmed',
+            'password' => 'required|string|min:9|confirmed',
             'phone' => 'nullable|string|max:20',
             'gender' => 'nullable|string|in:Male,Female,Other',
             'birthdate' => 'nullable|date',
@@ -136,7 +136,7 @@ class AuthController extends Controller
         $validator = Validator::make($request->all(), [
             'token' => 'required',
             'email' => 'required|string|email|exists:users,email',
-            'password' => 'required|string|min:6|confirmed',
+            'password' => 'required|string|min:9|confirmed',
         ]);
 
         if ($validator->fails()) {
@@ -238,8 +238,8 @@ class AuthController extends Controller
         // Validate the input
         $validator = Validator::make($request->all(), [
             'email' => 'required|email|exists:users,email',
-            'password' => 'required|string|min:6|confirmed',
-            'password_confirmation' => 'required|string|min:6', 
+            'password' => 'required|string|min:9|confirmed',
+            'password_confirmation' => 'required|string|min:9', 
         ]);
 
         // Return validation errors, if any
