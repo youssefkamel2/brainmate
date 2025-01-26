@@ -14,22 +14,36 @@ class ProjectController extends Controller
 
     use ResponseTrait;
 
-    public function getUserProjects(Request $request)
-    {
-        // Get the authenticated user from the JWT token
-        $user = Auth::user();
+\public function getUserProjects(Request $request)
+{
+    // Get the authenticated user
+    $user = Auth::user();
 
-        // Retrieve all projects associated with the user
-        $projectIds = $user->projects()
-            ->distinct('project_id')
-            ->pluck('project_id');
+    // Retrieve all projects associated with the user
+    $projectIds = $user->projects()
+        ->distinct('project_id')
+        ->pluck('project_id');
 
-        // Step 2: Fetch the full project details for the distinct project IDs
-        $projects = Project::whereIn('id', $projectIds)->get();
+    // Fetch the full project details for the distinct project IDs
+    $projects = Project::whereIn('id', $projectIds)->get();
 
+    // Add the is_manager flag to each project
+    $projectsWithManagerFlag = $projects->map(function ($project) use ($user) {
+        // Check if the user is the manager of the project
+        $isManager = $user->roles()
+            ->where('project_id', $project->id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id')
+            ->exists();
 
-        return $this->success(['projects' => $projects], 'Projects Retrived Successfully.');
-    }
+        // Add the is_manager flag to the project
+        $project->is_manager = $isManager;
+
+        return $project;
+    });
+
+    return $this->success(['projects' => $projectsWithManagerFlag], 'Projects retrieved successfully.');
+}
 
     public function getProjectDetails($projectId)
     {
