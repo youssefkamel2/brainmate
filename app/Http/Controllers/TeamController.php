@@ -307,25 +307,56 @@ class TeamController extends Controller
     public function getTeamDetails($teamId)
     {
         // Find the team
-        $team = Team::with(['project'])->find($teamId);
+        $team = Team::find($teamId);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-
+    
+        // Get the authenticated user
         $user = Auth::user();
-
+    
         // Get the project ID
         $projectId = $team->project_id;
-
+    
         // Check if the user is associated with the project
         $userProjectRoles = $user->roles()
             ->where('project_id', $projectId)
             ->get();
-
+    
         if ($userProjectRoles->isEmpty()) {
             return $this->error('User is not associated with this project.', 403);
         }
-
+    
+        // Check if the user is a project manager (role_id = 1 and team_id = null)
+        $isProjectManager = $userProjectRoles->contains(function ($role) {
+            return $role->pivot->team_id === null && $role->id === Role::ROLE_MANAGER;
+        });
+    
+        // Initialize the user's role in the team
+        $userRole = null;
+    
+        // If the user is a project manager, they have access to all teams
+        if ($isProjectManager) {
+            $userRole = 'manager';
+        } else {
+            // Check if the user is a team leader for this team
+            $isTeamLeader = $user->roles()
+                ->where('project_id', $projectId)
+                ->where('team_id', $teamId)
+                ->where('role_id', Role::ROLE_LEADER)
+                ->exists();
+    
+            // Check if the user is a member of the team
+            $isTeamMember = $team->members()->where('user_id', $user->id)->exists();
+    
+            // Set the role based on the user's role in the team
+            if ($isTeamLeader) {
+                $userRole = 'leader';
+            } elseif ($isTeamMember) {
+                $userRole = 'member';
+            }
+        }
+    
         // Fetch the manager of the project
         $manager = DB::table('project_role_user')
             ->where('project_id', $projectId)
@@ -334,7 +365,7 @@ class TeamController extends Controller
             ->join('users', 'project_role_user.user_id', '=', 'users.id')
             ->select('users.*', 'project_role_user.role_id')
             ->first();
-
+    
         // Fetch the leader of the team
         $leader = DB::table('project_role_user')
             ->where('team_id', $teamId)
@@ -342,7 +373,7 @@ class TeamController extends Controller
             ->join('users', 'project_role_user.user_id', '=', 'users.id')
             ->select('users.*', 'project_role_user.role_id')
             ->first();
-
+    
         // Fetch all members of the team (excluding the leader)
         $members = DB::table('project_role_user')
             ->where('team_id', $teamId)
@@ -350,25 +381,26 @@ class TeamController extends Controller
             ->join('users', 'project_role_user.user_id', '=', 'users.id')
             ->select('users.*', 'project_role_user.role_id')
             ->get();
-
+    
         // Combine all users into a single collection
         $allMembers = collect([]);
-
+    
         if ($manager) {
             $allMembers->push($manager);
         }
-
+    
         if ($leader) {
             $allMembers->push($leader);
         }
-
+    
         if ($members->isNotEmpty()) {
             $allMembers = $allMembers->merge($members);
         }
-
-        // Add the members to the team object
+    
+        // Add the members and the user's role to the team object
         $team->all_members = $allMembers;
-
+        $team->role = $userRole; // Add the user's role to the response
+    
         return $this->success(['team' => $team], 'Team details retrieved successfully.');
     }
 
@@ -655,7 +687,7 @@ class TeamController extends Controller
             if ($currentRole == Role::ROLE_MANAGER) {
                 return $this->error('Manager cannot be changed to member without assigning a new manager first.', 403);
             }
-    
+
             // Update the user's role to member
             DB::table('project_role_user')
                 ->where('user_id', $request->user_id)
