@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 /**
  * App\Models\Team
@@ -39,15 +40,29 @@ class Team extends Model
 
     protected $fillable = [
         'name',
-        'leader_id',
+        'added_by',
         'project_id',
+        'team_code', 
+
     ];
 
-    public function leader()
+    public static function generateTeamCode()
     {
-        return $this->belongsTo(User::class, 'leader_id');
-    }
+        do {
+            $code = Str::random(8); // Generate an 8-character random string
+        } while (self::where('team_code', $code)->exists()); // Ensure it's unique
 
+        return $code;
+    }
+        // Boot method to set the team code when creating a team
+        protected static function boot()
+        {
+            parent::boot();
+    
+            static::creating(function ($team) {
+                $team->team_code = self::generateTeamCode();
+            });
+        }
     public function tasks()
     {
         return $this->hasMany(Task::class);

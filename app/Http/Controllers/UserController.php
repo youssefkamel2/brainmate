@@ -59,7 +59,7 @@ class UserController extends Controller
             'skills' => 'nullable|array',
             'skills.*' => 'string|max:255',
             'facebook' => 'nullable|string|max:255', // New: Facebook link
-            'instagram' => 'nullable|string|max:255', // New: Instagram link
+            'github' => 'nullable|string|max:255', // New: github link
             'linkedin' => 'nullable|string|max:255', // New: LinkedIn link
             'website' => 'nullable|string|max:255', // New: Website link
             'experience_years' => 'sometimes|integer|min:0',
@@ -78,7 +78,7 @@ class UserController extends Controller
         // Prepare the social field
         $social = [
             'facebook' => $request->facebook ?? $user->social['facebook'] ?? null,
-            'instagram' => $request->instagram ?? $user->social['instagram'] ?? null,
+            'github' => $request->github ?? $user->social['github'] ?? null,
             'linkedin' => $request->linkedin ?? $user->social['linkedin'] ?? null,
             'website' => $request->website ?? $user->social['website'] ?? null,
         ];

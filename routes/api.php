@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TeamController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\TrashController;
 use App\Http\Controllers\FolderController;
@@ -53,11 +54,26 @@ Route::prefix('v1')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
         });
 
-        // project Routes
+        // project, teams Routes
         Route::prefix('projects')->group(function () {
-            Route::post('/create', [Projectcontroller::class, 'createProject']);
             Route::get('/assigned', [ProjectController::class, 'getUserProjects']);
-            Route::get('/{projectId}/teams', [ProjectController::class, 'getProjectTeams']);
+            Route::get('/{projectId}', [ProjectController::class, 'getProjectDetails']);
+            Route::post('/create', [Projectcontroller::class, 'createProject']);
+            Route::put('/{projectId}', [ProjectController::class, 'updateProject']);
+            Route::delete('/{projectId}', [ProjectController::class, 'deleteProject']);
+
+            // teams
+            Route::post('/{projectId}/teams/create', [TeamController::class, 'createTeam']);
+            Route::put('/teams/{teamId}', [TeamController::class, 'updateTeam']);
+            Route::delete('/teams/{teamId}', [TeamController::class, 'deleteTeam']);
+            Route::post('/teams/{teamId}/invite', [TeamController::class, 'inviteUserToTeam']);
+            Route::post('/teams/accept', [TeamController::class, 'acceptInvitation']);
+            Route::post('/teams/join', [TeamController::class, 'joinTeam']);
+            Route::get('/teams/{teamId}', [TeamController::class, 'getTeamDetails']);
+            Route::get('/{projectId}/teams', [TeamController::class, 'listTeamsInProject']);
+            Route::delete('/teams/{teamId}/remove-user', [TeamController::class, 'removeUserFromTeam']);
+            Route::put('/teams/{teamId}/change-role', [TeamController::class, 'changeUserRole']);
+            Route::post('/teams/{teamId}/leave', [TeamController::class, 'leaveTeam']);
         });
 
         // Task Routes

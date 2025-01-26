@@ -77,7 +77,7 @@ class User extends Authenticatable implements JWTSubject
         if (empty($value)) {
             return [
                 'facebook' => null,
-                'instagram' => null,
+                'github' => null,
                 'linkedin' => null,
                 'website' => null,
             ];
@@ -89,7 +89,7 @@ class User extends Authenticatable implements JWTSubject
         // Convert links into a key-value array
         $socialLinks = [
             'facebook' => null,
-            'instagram' => null,
+            'github' => null,
             'linkedin' => null,
             'website' => null,
         ];
