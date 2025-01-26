@@ -407,38 +407,37 @@ class TeamController extends Controller
     // // List teams in a project
     public function listTeamsInProject(Request $request, $projectId)
     {
-        // Get the authenticated user from the JWT token
+        // Get the authenticated user
         $user = Auth::user();
-
+    
         // Find the project
         $project = Project::find($projectId);
-
         if (!$project) {
             return $this->error('Project not found.', 404);
         }
-
+    
         // Check if the user is associated with the project
         $userProjectRoles = $user->roles()
             ->where('project_id', $projectId)
             ->get();
-
+    
         if ($userProjectRoles->isEmpty()) {
             return $this->error('User is not associated with this project.', 403);
         }
-
+    
         // Check if the user is a project manager (role_id = 1 and team_id = null)
         $isProjectManager = $userProjectRoles->contains(function ($role) {
-            return $role->pivot->team_id === null && $role->id === 1; // Assuming role_id 1 is for manager
+            return $role->pivot->team_id === null && $role->id === Role::ROLE_MANAGER;
         });
-
+    
         // Get all teams in the project
         $teams = $project->teams()->get();
-
+    
         // Check if the user has access to each team and include their role
         $teamsWithAccess = $teams->map(function ($team) use ($user, $isProjectManager, $projectId) {
             // Initialize the role as null
             $role = null;
-
+    
             // If the user is a project manager, they have access to all teams
             if ($isProjectManager) {
                 $team->hasAccess = true;
@@ -448,18 +447,18 @@ class TeamController extends Controller
                 $isTeamLeader = $user->roles()
                     ->where('project_id', $projectId)
                     ->where('team_id', $team->id)
-                    ->where('role_id', 2) // Assuming role_id 2 is for leader
+                    ->where('role_id', Role::ROLE_LEADER)
                     ->exists();
-
+    
                 // Check if the user is a member of the team
                 $isTeamMember = $team->members()->where('user_id', $user->id)->exists();
-
+    
                 // Determine if the user has access to the team
                 $hasAccess = $isTeamLeader || $isTeamMember;
-
+    
                 // Add the hasAccess flag to the team
                 $team->hasAccess = $hasAccess;
-
+    
                 // Set the role based on the user's role in the team
                 if ($isTeamLeader) {
                     $role = 'leader'; // Assuming role_id 2 is for leader
@@ -467,14 +466,20 @@ class TeamController extends Controller
                     $role = 'member'; // Assuming role_id 3 is for member
                 }
             }
-
+    
             // Add the role to the team object
             $team->role = $role;
-
+    
             return $team;
         });
-
-        return $this->success(['teams' => $teamsWithAccess], 'Teams Retrieved Successfully.');
+    
+        // Add the is_manager flag to the response
+        $response = [
+            'teams' => $teamsWithAccess,
+            'is_manager' => $isProjectManager, // Add the is_manager flag
+        ];
+    
+        return $this->success($response, 'Teams retrieved successfully.');
     }
 
     public function removeUserFromTeam(Request $request, $teamId)
