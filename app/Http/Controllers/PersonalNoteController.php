@@ -47,7 +47,7 @@ class PersonalNoteController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         $note = PersonalNote::create([
@@ -113,7 +113,7 @@ class PersonalNoteController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         $note->update($request->all());

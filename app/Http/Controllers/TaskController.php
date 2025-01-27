@@ -48,7 +48,7 @@ class TaskController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         $team = Team::find($request['team_id']);
@@ -101,7 +101,7 @@ class TaskController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         $team = Team::find($request['team_id']);

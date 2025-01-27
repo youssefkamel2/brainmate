@@ -47,7 +47,7 @@ class AuthController extends Controller
     
         // Return validation errors if they exist
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
     
         // Normalize the skills field
@@ -117,7 +117,7 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         $user = User::where('email', $request->email)->first();
@@ -140,7 +140,7 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         // Verify token validity
@@ -169,7 +169,7 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         // Generate a random 6-digit numeric code
@@ -204,7 +204,7 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         $resetCode = PasswordResetCode::where('email', $request->email)->first();
@@ -244,7 +244,7 @@ class AuthController extends Controller
 
         // Return validation errors, if any
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         // Fetch the user by email

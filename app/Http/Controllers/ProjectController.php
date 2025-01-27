@@ -68,7 +68,7 @@ class ProjectController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         // Create the project
@@ -126,7 +126,7 @@ class ProjectController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         // Update the project

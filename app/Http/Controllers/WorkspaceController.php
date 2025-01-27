@@ -47,7 +47,7 @@ class WorkspaceController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         // Upload images and store their paths

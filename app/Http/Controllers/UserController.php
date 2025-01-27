@@ -39,8 +39,7 @@ class UserController extends Controller
      * Update the authenticated user's profile.
      */
 
-    public function updateProfile(Request $request)
-    {
+    public function updateProfile(Request $request){
         $user = Auth::user();
 
         // List of banned words
@@ -97,7 +96,7 @@ class UserController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         // Normalize the skills field
@@ -149,7 +148,7 @@ class UserController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error($validator->errors(), 422);
+            return $this->error($validator->errors()->first(), 422);
         }
 
         // Verify the current password
