@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Project;
+use App\Models\Role;
 use App\Models\Task;
-use App\Models\TaskMember;
 use App\Models\Team;
+use App\Models\User;
+use App\Models\Project;
+use App\Models\TaskMember;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
@@ -16,86 +19,22 @@ class TaskController extends Controller
 {
 
     use ResponseTrait;
-    public function getAllTasks()
-    {
 
-        $tasks = Task::with('members')->get();
-
-        return $this->success(['tasks' => $tasks], 'Tasks Retrived Successfully');
-    }
-
-    public function getAssignedTasks()
-    {
-
-        $tasks = Task::whereHas('members', function ($query) {
-            $query->where('user_id', Auth::id());
-        })->with(['members'])->get();
-
-        return $this->success(['Tasks' => $tasks], 'Tasks Retrived Successfully');
-    }
-
+    // Create Task (Team Leader Only)
     public function createTask(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'team_id' => 'exists:teams,id',
-            'description' => 'nullable|string',
-            'tags' => 'nullable|string',
-            'priority' => 'required|in:low,medium,high',
-            'deadline' => 'date',
-            'members' => 'required|array',
-            'members.*' => 'exists:users,id',
-        ]);
+        // Get the authenticated user
+        $user = Auth::user();
 
-        if ($validator->fails()) {
-            return $this->error($validator->errors()->first(), 422);
-        }
-
-        $team = Team::find($request['team_id']);
-        $project_id = $team->project_id;
-
-        // Create the task
-        $task = Task::create([
-            'name' => $request['name'],
-            'team_id' => $request['team_id'],
-            'description' => $request['description'] ?? null,
-            'tags' => $request['tags'] ?? null,
-            'priority' => $request['priority'],
-            'deadline' => $request['deadline'] ?? null,
-            'status' => true, // Default active status
-        ]);
-
-        // Add members to the task
-        if (!empty($request['members'])) {
-            foreach ($request['members'] as $memberId) {
-                TaskMember::create([
-                    'task_id' => $task->id,
-                    'team_id' => $request['team_id'],
-                    'project_id' => $project_id,
-                    'user_id' => $memberId,
-                ]);
-            }
-        }
-
-        return $this->success(['task' => $task], 'Task created successfully.', 201);
-    }
-
-    // Update a task
-    public function updateTask(Request $request, $task_id)
-    {
-
-        $task = Task::find($task_id);
-        if (!$task) {
-            return $this->error('Task not found', 404);
-        }
-
+        // Validate the request
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'team_id' => 'required|exists:teams,id',
             'description' => 'nullable|string',
             'tags' => 'nullable|string',
-            'priority' => 'required|in:low,medium,high',
-            'deadline' => 'required|date',
+            'priority' => 'nullable|in:low,medium,high',
+            'deadline' => 'nullable|date',
+            'status' => 'nullable|boolean',
             'members' => 'required|array',
             'members.*' => 'exists:users,id',
         ]);
@@ -104,73 +43,315 @@ class TaskController extends Controller
             return $this->error($validator->errors()->first(), 422);
         }
 
-        $team = Team::find($request['team_id']);
-        $project_id = $team->project_id;
-        
-        // Update task attributes
-        $task->update([
-            'name' => $request['name'],
-            'team_id' => $request['team_id'],
-            'description' => $request['description'],
-            'tags' => $request['tags'],
-            'priority' => $request['priority'],
-            'deadline' => $request['deadline'],
-            'status' => $request['status'] ?? $task->status,
+        // Check if the user is a leader of the team
+        $isLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $request->team_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->exists();
+
+        if (!$isLeader) {
+            return $this->error('Only team leaders can create tasks.', 403);
+        }
+
+        // Validate that all selected members are part of the team
+        if ($request->has('members')) {
+            $teamMembers = DB::table('project_role_user')
+                ->where('team_id', $request->team_id)
+                ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+                ->pluck('user_id')
+                ->toArray();
+
+            $invalidMembers = array_diff($request->members, $teamMembers);
+            if (!empty($invalidMembers)) {
+                $invalidMemberNames = User::whereIn('id', $invalidMembers)->pluck('name')->toArray();
+                return $this->error('The following users are not part of the team: ' . implode(', ', $invalidMemberNames), 422);
+            }
+        }
+
+        // Create the task
+        $task = Task::create([
+            'name' => $request->name,
+            'team_id' => $request->team_id,
+            'description' => $request->description,
+            'tags' => $request->tags,
+            'priority' => $request->priority ?? 'medium',
+            'deadline' => $request->deadline,
+            'status' => $request->status ?? true,
         ]);
 
-        // Remove all existing task members and add new members
-        TaskMember::where('task_id', $task->id)->delete();
-
-        if (!empty($request['members'])) {
-            foreach ($request['members'] as $memberId) {
-                TaskMember::create([
+        // Assign members to the task
+        if ($request->has('members')) {
+            foreach ($request->members as $memberId) {
+                DB::table('task_members')->insert([
                     'task_id' => $task->id,
-                    'team_id' => $request['team_id'],
-                    'project_id' => $project_id,
                     'user_id' => $memberId,
+                    'team_id' => $request->team_id,
+                    'project_id' => $task->team->project_id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
         }
 
-        return $this->success($task, 'Task updated successfully.');
+        return $this->success(['task' => $task], 'Task created successfully.');
     }
 
-    // Delete a task
-    public function deleteTask($task_id)
+    // Update Task (Team Leader Only)
+    public function updateTask(Request $request, $taskId)
     {
+        // Get the authenticated user
+        $user = Auth::user();
 
-        $task = Task::find($task_id);
+        // Validate the request
+        $validator = Validator::make($request->all(), [
+            'name' => 'sometimes|string|max:255',
+            'description' => 'nullable|string',
+            'tags' => 'nullable|string',
+            'priority' => 'nullable|in:low,medium,high',
+            'deadline' => 'nullable|date',
+            'status' => 'nullable|boolean',
+            'members' => 'nullable|array',
+            'members.*' => 'exists:users,id',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+
+        // Find the task
+        $task = Task::find($taskId);
         if (!$task) {
-            return $this->error('Task not found', 404);
+            return $this->error('Task not found.', 404);
         }
 
-        // Check if the user is authorized (Team leader)
-        $team = Team::findOrFail($task->team_id);
-        $leader_id = $team->leader_id;
+        // Check if the user is a leader of the team
+        $isLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->exists();
 
-        if ($leader_id !== Auth::id()) {
-            return $this->error('You are not authorized to delete this task.', 403);
+        if (!$isLeader) {
+            return $this->error('Only team leaders can update tasks.', 403);
         }
 
-        // Delete task members
-        TaskMember::where('task_id', $task->id)->delete();
+        // Validate that all selected members are part of the team
+        if ($request->has('members')) {
+            $teamMembers = DB::table('project_role_user')
+                ->where('team_id', $task->team_id)
+                ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+                ->pluck('user_id')
+                ->toArray();
 
-        // Delete the task
+            $invalidMembers = array_diff($request->members, $teamMembers);
+            if (!empty($invalidMembers)) {
+                $invalidMemberNames = User::whereIn('id', $invalidMembers)->pluck('name')->toArray();
+                return $this->error('The following users are not part of the team: ' . implode(', ', $invalidMemberNames), 422);
+            }
+        }
+
+        // Update the task
+        $task->update($request->only(['name', 'description', 'tags', 'priority', 'deadline', 'status']));
+
+        // Update members if provided
+        if ($request->has('members')) {
+            // Remove existing members
+            DB::table('task_members')->where('task_id', $task->id)->delete();
+
+            // Assign new members
+            foreach ($request->members as $memberId) {
+                DB::table('task_members')->insert([
+                    'task_id' => $task->id,
+                    'user_id' => $memberId,
+                    'team_id' => $task->team_id,
+                    'project_id' => $task->team->project_id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+
+        return $this->success(['task' => $task], 'Task updated successfully.');
+    }
+
+    // Delete Task (Team Leader Only)
+    public function deleteTask($taskId)
+    {
+        // Get the authenticated user
+        $user = Auth::user();
+
+        // Find the task
+        $task = Task::find($taskId);
+        if (!$task) {
+            return $this->error('Task not found.', 404);
+        }
+
+        // Check if the user is a leader of the team
+        $isLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->exists();
+
+        if (!$isLeader) {
+            return $this->error('Only team leaders can delete tasks.', 403);
+        }
+
+        // Delete the task and its members
+        DB::table('task_members')->where('task_id', $task->id)->delete();
         $task->delete();
 
-        return $this->success(null, 'Task deleted successfully.');
+        return $this->success([], 'Task deleted successfully.');
+    }
+
+    // Get Team Tasks
+    public function getTeamTasks($teamId)
+    {
+        // Get the authenticated user
+        $user = Auth::user();
+
+        // check if the team exist
+        $team = Team::find($teamId);
+        if (!$team) {
+            return $this->error('Team not found.', 404);
+        }
+
+        // Check if the user is part of the team (member or leader)
+        $isPartOfTeam = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $teamId)
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->exists();
+
+        if (!$isPartOfTeam) {
+            return $this->error('You are not part of this team.', 403);
+        }
+
+        // Get tasks for the team
+        $tasks = Task::where('team_id', $teamId)->get();
+
+        // Format the response
+        $formattedTasks = $tasks->map(function ($task) {
+            return [
+                'id' => $task->id,
+                'name' => $task->name,
+                'description' => $task->description,
+                'tags' => $task->tags,
+                'priority' => $task->priority,
+                'deadline' => $task->deadline,
+                'status' => $task->status,
+                'team_id' => $task->team_id,
+                'members' => $task->members->map(function ($member) {
+                    return [
+                        'id' => $member->id,
+                        'name' => $member->name,
+                        'color' => $this->getMemberColor($member->id),
+                    ];
+                }),
+            ];
+        });
+
+        return $this->success(['tasks' => $formattedTasks], 'Team tasks retrieved successfully.');
+    }
+
+    // Get All Tasks (Assigned to User or Teams They Belong To)
+    public function getAllTasks(Request $request)
+    {
+        // Get the authenticated user
+        $user = Auth::user();
+
+        // Get all teams where the user is a member or leader
+        $teamIds = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->pluck('team_id')
+            ->toArray();
+
+        // Get all tasks in these teams
+        $tasks = Task::whereIn('team_id', $teamIds)->get();
+
+        // Format the response
+        $formattedTasks = $tasks->map(function ($task) use ($user) {
+            return [
+                'id' => $task->id,
+                'name' => $task->name,
+                'description' => $task->description,
+                'tags' => $task->tags,
+                'priority' => $task->priority,
+                'deadline' => $task->deadline,
+                'status' => $task->status,
+                'team_id' => $task->team_id,
+                'assigned_to_me' => $task->members->contains('id', $user->id),
+                'members' => $task->members->map(function ($member) {
+                    return [
+                        'id' => $member->id,
+                        'name' => $member->name,
+                        'color' => $this->getMemberColor($member->id),
+                    ];
+                }),
+            ];
+        });
+
+        return $this->success(['tasks' => $formattedTasks], 'All tasks retrieved successfully.');
     }
 
     // get task by id
-    public function getTaskById($task_id)
-{
-    // Retrieve the task with its members
-    $task = Task::with('members')->find($task_id);
-
-    if (!$task) {
-        return $this->error('Task not found', 404);
+    public function getTaskById($taskId)
+    {
+        // Get the authenticated user
+        $user = Auth::user();
+    
+        // Retrieve the task with its members
+        $task = Task::with('members')->find($taskId);
+    
+        if (!$task) {
+            return $this->error('Task not found.', 404);
+        }
+    
+        // Check if the user is part of the team (member or leader)
+        $isPartOfTeam = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $task->team_id)
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->exists();
+    
+        if (!$isPartOfTeam) {
+            return $this->error('You are not part of this team.', 403);
+        }
+    
+        // Format the response
+        $formattedTask = [
+            'id' => $task->id,
+            'name' => $task->name,
+            'description' => $task->description,
+            'tags' => $task->tags,
+            'priority' => $task->priority,
+            'deadline' => $task->deadline,
+            'status' => $task->status,
+            'team_id' => $task->team_id,
+            'assigned_to_me' => $task->members->contains('id', $user->id),
+            'members' => $task->members->map(function ($member) {
+                return [
+                    'id' => $member->id,
+                    'name' => $member->name,
+                    'email' => $member->email,
+                    'color' => $this->getMemberColor($member->id),
+                ];
+            }),
+        ];
+    
+        return $this->success(['task' => $formattedTask], 'Task retrieved successfully.');
     }
 
-    return $this->success(['task' => $task], 'Task retrieved successfully.');
-}
+    // Helper Function: Get Member Color
+    private function getMemberColor($userId)
+    {
+        // Predefined list of colors
+        $colors = ['#FF6633', '#FFB399', '#FF33FF', '#FFFF99', '#00B3E6', '#E6B333', '#3366E6', '#999966', '#99FF99', '#B34D4D'];
+
+        // Use a hash function to map user_id to a color
+        $index = $userId % count($colors);
+        return $colors[$index];
+    }
 }

@@ -74,16 +74,23 @@ Route::prefix('v1')->group(function () {
             Route::delete('/teams/{teamId}/remove-user', [TeamController::class, 'removeUserFromTeam']);
             Route::put('/teams/{teamId}/change-role', [TeamController::class, 'changeUserRole']);
             Route::post('/teams/{teamId}/leave', [TeamController::class, 'leaveTeam']);
+            Route::get('/teams/get/my-teams', [TeamController::class, 'getMyTeams']);
+            Route::get('/teams/{teamId}/users', [TeamController::class, 'getTeamUsers']);
         });
 
-        // Task Routes
+        // Task 
         Route::prefix('tasks')->group(function () {
-            Route::get('/', [TaskController::class, 'getAllTasks']);
-            Route::get('/assigned', [TaskController::class, 'getAssignedTasks']);
+            // Route::get('/', [TaskController::class, 'getAllTasks']);
+            // Route::get('/assigned', [TaskController::class, 'getAssignedTasks']);
             Route::get('/{task}', [TaskController::class, 'getTaskById']);
-            Route::post('/', [TaskController::class, 'createTask']);
-            Route::put('/{task}', [TaskController::class, 'updateTask']);
-            Route::delete('/{task}', [TaskController::class, 'deleteTask']);
+            // Route::post('/', [TaskController::class, 'createTask']);
+            // Route::put('/{task}', [TaskController::class, 'updateTask']);
+            // Route::delete('/{task}', [TaskController::class, 'deleteTask']);
+            Route::post('/', [TaskController::class, 'createTask']); // Create task
+            Route::put('/{taskId}', [TaskController::class, 'updateTask']); // Update task
+            Route::delete('/{taskId}', [TaskController::class, 'deleteTask']); // Delete task
+            Route::get('/teams/{teamId}/tasks', [TaskController::class, 'getTeamTasks']); // Get team tasks
+            Route::get('/', [TaskController::class, 'getAllTasks']); // Get all tasks (assigned to user or teams they belong to)
         });
 
         // [Personal Notes]

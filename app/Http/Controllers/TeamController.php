@@ -311,30 +311,30 @@ class TeamController extends Controller
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-    
+
         // Get the authenticated user
         $user = Auth::user();
-    
+
         // Get the project ID
         $projectId = $team->project_id;
-    
+
         // Check if the user is associated with the project
         $userProjectRoles = $user->roles()
             ->where('project_id', $projectId)
             ->get();
-    
+
         if ($userProjectRoles->isEmpty()) {
             return $this->error('User is not associated with this project.', 403);
         }
-    
+
         // Check if the user is a project manager (role_id = 1 and team_id = null)
         $isProjectManager = $userProjectRoles->contains(function ($role) {
             return $role->pivot->team_id === null && $role->id === Role::ROLE_MANAGER;
         });
-    
+
         // Initialize the user's role in the team
         $userRole = null;
-    
+
         // If the user is a project manager, they have access to all teams
         if ($isProjectManager) {
             $userRole = 'manager';
@@ -345,10 +345,10 @@ class TeamController extends Controller
                 ->where('team_id', $teamId)
                 ->where('role_id', Role::ROLE_LEADER)
                 ->exists();
-    
+
             // Check if the user is a member of the team
             $isTeamMember = $team->members()->where('user_id', $user->id)->exists();
-    
+
             // Set the role based on the user's role in the team
             if ($isTeamLeader) {
                 $userRole = 'leader';
@@ -356,7 +356,7 @@ class TeamController extends Controller
                 $userRole = 'member';
             }
         }
-    
+
         // Fetch the manager of the project
         $manager = DB::table('project_role_user')
             ->where('project_id', $projectId)
@@ -365,7 +365,7 @@ class TeamController extends Controller
             ->join('users', 'project_role_user.user_id', '=', 'users.id')
             ->select('users.*', 'project_role_user.role_id')
             ->first();
-    
+
         // Fetch the leader of the team
         $leader = DB::table('project_role_user')
             ->where('team_id', $teamId)
@@ -373,7 +373,7 @@ class TeamController extends Controller
             ->join('users', 'project_role_user.user_id', '=', 'users.id')
             ->select('users.*', 'project_role_user.role_id')
             ->first();
-    
+
         // Fetch all members of the team (excluding the leader)
         $members = DB::table('project_role_user')
             ->where('team_id', $teamId)
@@ -381,26 +381,26 @@ class TeamController extends Controller
             ->join('users', 'project_role_user.user_id', '=', 'users.id')
             ->select('users.*', 'project_role_user.role_id')
             ->get();
-    
+
         // Combine all users into a single collection
         $allMembers = collect([]);
-    
+
         if ($manager) {
             $allMembers->push($manager);
         }
-    
+
         if ($leader) {
             $allMembers->push($leader);
         }
-    
+
         if ($members->isNotEmpty()) {
             $allMembers = $allMembers->merge($members);
         }
-    
+
         // Add the members and the user's role to the team object
         $team->all_members = $allMembers;
         $team->role = $userRole; // Add the user's role to the response
-    
+
         return $this->success(['team' => $team], 'Team details retrieved successfully.');
     }
 
@@ -409,35 +409,35 @@ class TeamController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-    
+
         // Find the project
         $project = Project::find($projectId);
         if (!$project) {
             return $this->error('Project not found.', 404);
         }
-    
+
         // Check if the user is associated with the project
         $userProjectRoles = $user->roles()
             ->where('project_id', $projectId)
             ->get();
-    
+
         if ($userProjectRoles->isEmpty()) {
             return $this->error('User is not associated with this project.', 403);
         }
-    
+
         // Check if the user is a project manager (role_id = 1 and team_id = null)
         $isProjectManager = $userProjectRoles->contains(function ($role) {
             return $role->pivot->team_id === null && $role->id === Role::ROLE_MANAGER;
         });
-    
+
         // Get all teams in the project
         $teams = $project->teams()->get();
-    
+
         // Check if the user has access to each team and include their role
         $teamsWithAccess = $teams->map(function ($team) use ($user, $isProjectManager, $projectId) {
             // Initialize the role as null
             $role = null;
-    
+
             // If the user is a project manager, they have access to all teams
             if ($isProjectManager) {
                 $team->hasAccess = true;
@@ -449,16 +449,16 @@ class TeamController extends Controller
                     ->where('team_id', $team->id)
                     ->where('role_id', Role::ROLE_LEADER)
                     ->exists();
-    
+
                 // Check if the user is a member of the team
                 $isTeamMember = $team->members()->where('user_id', $user->id)->exists();
-    
+
                 // Determine if the user has access to the team
                 $hasAccess = $isTeamLeader || $isTeamMember;
-    
+
                 // Add the hasAccess flag to the team
                 $team->hasAccess = $hasAccess;
-    
+
                 // Set the role based on the user's role in the team
                 if ($isTeamLeader) {
                     $role = 'leader'; // Assuming role_id 2 is for leader
@@ -466,19 +466,19 @@ class TeamController extends Controller
                     $role = 'member'; // Assuming role_id 3 is for member
                 }
             }
-    
+
             // Add the role to the team object
             $team->role = $role;
-    
+
             return $team;
         });
-    
+
         // Add the is_manager flag to the response
         $response = [
             'teams' => $teamsWithAccess,
             'is_manager' => $isProjectManager, // Add the is_manager flag
         ];
-    
+
         return $this->success($response, 'Teams retrieved successfully.');
     }
 
@@ -566,43 +566,42 @@ class TeamController extends Controller
     }
 
     public function changeUserRole(Request $request, $teamId)
-    {
-        // Get the authenticated user
+    {        // Get the authenticated user
         $user = Auth::user();
-    
+
         // Validate the request
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|exists:users,id',
             'role_id' => 'required|exists:roles,id',
         ]);
-    
+
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
-    
+
         // Find the team
         $team = Team::find($teamId);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-    
+
         // Check if the user is the manager of the project
         $isManager = $user->roles()
             ->where('project_id', $team->project_id)
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id')
             ->exists();
-    
+
         if (!$isManager) {
             return $this->error('Only the manager can change user roles.', 403);
         }
-    
+
         // Find the user whose role is being changed
         $userToChange = User::find($request->user_id);
         if (!$userToChange) {
             return $this->error('User not found.', 404);
         }
-    
+
         // Check the current role of the user
         $currentRole = DB::table('project_role_user')
             ->where('user_id', $request->user_id)
@@ -612,11 +611,11 @@ class TeamController extends Controller
                     ->orWhereNull('team_id'); // Include manager (team_id = null)
             })
             ->value('role_id');
-    
+
         if (!$currentRole) {
             return $this->error('User is not associated with this project or team.', 404);
         }
-    
+
         // If the new role is manager
         if ($request->role_id == Role::ROLE_MANAGER) {
             // Find the current manager
@@ -625,7 +624,7 @@ class TeamController extends Controller
                 ->where('role_id', Role::ROLE_MANAGER)
                 ->whereNull('team_id')
                 ->first();
-    
+
             // If there is a current manager, demote them to a member of the team
             if ($currentManager) {
                 // Remove the current manager's manager role
@@ -634,7 +633,7 @@ class TeamController extends Controller
                     ->where('project_id', $team->project_id)
                     ->whereNull('team_id')
                     ->delete();
-    
+
                 // Add the current manager as a member of the team
                 DB::table('project_role_user')->insert([
                     'user_id' => $currentManager->user_id,
@@ -645,13 +644,13 @@ class TeamController extends Controller
                     'updated_at' => now(),
                 ]);
             }
-    
+
             // Remove any existing roles for the new manager (member or leader)
             DB::table('project_role_user')
                 ->where('user_id', $request->user_id)
                 ->where('project_id', $team->project_id)
                 ->delete();
-    
+
             // Assign the new manager
             DB::table('project_role_user')->insert([
                 'user_id' => $request->user_id,
@@ -661,10 +660,10 @@ class TeamController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-    
+
             return $this->success([], 'User role updated to manager successfully.');
         }
-    
+
         // If the new role is leader
         if ($request->role_id == Role::ROLE_LEADER) {
             // Remove the current leader
@@ -672,7 +671,7 @@ class TeamController extends Controller
                 ->where('team_id', $teamId)
                 ->where('role_id', Role::ROLE_LEADER)
                 ->delete();
-    
+
             // Assign the new leader
             DB::table('project_role_user')->insert([
                 'user_id' => $request->user_id,
@@ -682,10 +681,10 @@ class TeamController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-    
+
             return $this->success([], 'User role updated to leader successfully.');
         }
-    
+
         // If the new role is member
         if ($request->role_id == Role::ROLE_MEMBER) {
             // Check if the user being changed is the current manager
@@ -699,10 +698,10 @@ class TeamController extends Controller
                 ->where('project_id', $team->project_id)
                 ->where('team_id', $teamId)
                 ->update(['role_id' => Role::ROLE_MEMBER]);
-    
+
             return $this->success([], 'User role updated to member successfully.');
         }
-    
+
         return $this->error('Invalid role.', 422);
     }
 
@@ -745,4 +744,92 @@ class TeamController extends Controller
 
         return $this->success([], 'You have successfully left the team.');
     }
+
+    public function getMyTeams(Request $request)
+    {
+        // Get the authenticated user
+        $user = Auth::user();
+
+        // Step 1: Get all projects where the user is a manager
+        $managedProjects = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->pluck('project_id');
+
+        // Step 2: Get all teams where the user is a member or leader
+        $teams = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->join('teams', 'project_role_user.team_id', '=', 'teams.id')
+            ->select('teams.*', 'project_role_user.role_id')
+            ->get();
+
+        // Step 3: If the user is a manager, include all teams in the projects they manage
+        if ($managedProjects->isNotEmpty()) {
+            $managedTeams = Team::whereIn('project_id', $managedProjects)->get();
+
+            // Add the manager role to these teams
+            $managedTeams = $managedTeams->map(function ($team) {
+                $team->role = 'manager';
+                return $team;
+            });
+
+            // Merge the managed teams with the teams where the user is a member or leader
+            $teams = $teams->merge($managedTeams);
+        }
+
+        // Step 4: Format the response to include the user's role in each team
+        $formattedTeams = $teams->map(function ($team) {
+            // Determine the user's role in the team
+            $role = $team->role_id == Role::ROLE_LEADER ? 'leader' : ($team->role_id == Role::ROLE_MANAGER ? 'manager' : 'member');
+
+            // Add the role to the team object
+            $team->role = $role;
+
+            return $team;
+        });
+
+        // Step 5: Remove duplicates (in case a user is both a manager and a member/leader of a team)
+        $formattedTeams = $formattedTeams->unique('id');
+
+        return $this->success(['teams' => $formattedTeams], 'User teams retrieved successfully.');
+    }
+
+    // Get Team Users
+    public function getTeamUsers($teamId)
+    {
+        // Get the authenticated user
+        $user = Auth::user();
+
+        // Check if the user is part of the team (member or leader)
+        $isPartOfTeam = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $teamId)
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->exists();
+
+        if (!$isPartOfTeam) {
+            return $this->error('You are not part of this team.', 403);
+        }
+
+        // Get users in the team
+        $users = DB::table('project_role_user')
+            ->where('team_id', $teamId)
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->join('users', 'project_role_user.user_id', '=', 'users.id')
+            ->select('users.id', 'users.name', 'users.email')
+            ->get();
+
+        // Format the response
+        $formattedUsers = $users->map(function ($user) {
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ];
+        });
+
+        return $this->success(['users' => $formattedUsers], 'Team users retrieved successfully.');
+    }
+    
 }
