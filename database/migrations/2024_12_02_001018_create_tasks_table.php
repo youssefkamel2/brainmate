@@ -16,7 +16,7 @@ class CreateTasksTable extends Migration
             $table->text('tags')->nullable();
             $table->enum('priority', ['low', 'medium', 'high'])->default('medium');
             $table->timestamp('deadline')->nullable();
-            $table->text('status')->default('pending'); // Active or completed
+            $table->text('status'); // Active or completed
             $table->timestamps();
         });
     }
