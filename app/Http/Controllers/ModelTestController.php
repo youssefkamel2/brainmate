@@ -13,10 +13,19 @@ use App\Models\Attachment;
 use App\Models\TaskMember;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Traits\ResponseTrait;
 
 class ModelTestController extends Controller
 {
+
+    use ResponseTrait;
+
     public function testModels(Request $request){
+
+        $test = env('DB_CONNECTION','no');
+        
+        return $this->success($test, 200);
+
 
     }
 }

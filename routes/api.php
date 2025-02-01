@@ -20,6 +20,7 @@ Route::prefix('v1')->group(function () {
 
     // Route::get('/', [WelcomeController::class, 'welcome']);
 
+    Route::get('test-models', [ModelTestController::class, 'testModels']);
 
     // Authentication Routes
     Route::prefix('auth')->group(function () {
@@ -47,7 +48,6 @@ Route::prefix('v1')->group(function () {
     // Protected Routes (Require API Authentication)
     Route::middleware('auth:api')->group(function () {
 
-        Route::get('test-models', [ModelTestController::class, 'testModels']);
 
         Route::prefix('user')->group(function () {
             Route::get('/', [AuthController::class, 'user']);
