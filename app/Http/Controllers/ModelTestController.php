@@ -22,7 +22,7 @@ class ModelTestController extends Controller
 
     public function testModels(Request $request){
 
-        $test = env('ffwoij','no');
+        $test = env('DB_DATABASE','no');
 
         return $this->success($test, 200);
 
