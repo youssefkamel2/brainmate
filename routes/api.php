@@ -140,4 +140,5 @@ Route::prefix('v1')->group(function () {
             Route::put('/password', [UserController::class, 'updatePassword']);
         });
     });
+    
 });
