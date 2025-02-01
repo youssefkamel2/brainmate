@@ -7,6 +7,7 @@ use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\Project;
+use App\Models\TaskNote;
 use App\Models\TaskMember;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
@@ -297,13 +298,14 @@ class TaskController extends Controller
     }
 
     // get task by id
+
     public function getTaskById($taskId)
     {
         // Get the authenticated user
         $user = Auth::user();
     
-        // Retrieve the task with its members
-        $task = Task::with('members')->find($taskId);
+        // Retrieve the task with its members and notes
+        $task = Task::with(['members', 'notes.user'])->find($taskId);
     
         if (!$task) {
             return $this->error('Task not found.', 404);
@@ -339,11 +341,23 @@ class TaskController extends Controller
                     'color' => $this->getMemberColor($member->id),
                 ];
             }),
+            'notes' => $task->notes->map(function ($note) {
+                return [
+                    'id' => $note->id,
+                    'description' => $note->description,
+                    'created_at' => $note->created_at,
+                    'user' => [
+                        'id' => $note->user->id,
+                        'name' => $note->user->name,
+                        'email' => $note->user->email,
+                        'color' => $this->getMemberColor($note->user->id),
+                    ],
+                ];
+            }),
         ];
     
         return $this->success(['task' => $formattedTask], 'Task retrieved successfully.');
     }
-
     // Helper Function: Get Member Color
     private function getMemberColor($userId)
     {
@@ -354,4 +368,103 @@ class TaskController extends Controller
         $index = $userId % count($colors);
         return $colors[$index];
     }
+
+    // ============= task notes ============
+
+    public function addTaskNote(Request $request, $taskId){
+    // Get the authenticated user
+    $user = Auth::user();
+
+    // Validate the request
+    $validator = Validator::make($request->all(), [
+        'description' => 'required|string',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->error($validator->errors()->first(), 422);
+    }
+
+    // Find the task
+    $task = Task::find($taskId);
+    if (!$task) {
+        return $this->error('Task not found.', 404);
+    }
+
+    // Check if the user is part of the team (member or leader)
+    $isPartOfTeam = DB::table('project_role_user')
+        ->where('user_id', $user->id)
+        ->where('team_id', $task->team_id)
+        ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+        ->exists();
+
+    if (!$isPartOfTeam) {
+        return $this->error('You are not part of this team.', 403);
+    }
+
+    // Create the task note
+    $taskNote = TaskNote::create([
+        'task_id' => $taskId,
+        'user_id' => $user->id,
+        'description' => $request->description,
+    ]);
+
+    return $this->success(['note' => $taskNote], 'Task note added successfully.');
+    }
+
+    public function updateTaskState(Request $request, $taskId)
+    {
+        // Get the authenticated user
+        $user = Auth::user();
+    
+        // Validate the request
+        $validator = Validator::make($request->all(), [
+            'state' => 'required|in:' . implode(',', Task::$statuses),
+        ]);
+    
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+    
+        // Find the task
+        $task = Task::find($taskId);
+        if (!$task) {
+            return $this->error('Task not found.', 404);
+        }
+    
+        // Check if the task is already cancelled
+        if ($task->status === Task::STATUS_CANCELLED) {
+            // Only the team leader can update the state of a cancelled task
+            $isTeamLeader = DB::table('project_role_user')
+                ->where('user_id', $user->id)
+                ->where('team_id', $task->team_id)
+                ->where('role_id', Role::ROLE_LEADER)
+                ->exists();
+    
+            if (!$isTeamLeader) {
+                return $this->error('Only the team leader can update the state of a cancelled task.', 403);
+            }
+        } else {
+            // For non-cancelled tasks, check if the user is assigned to the task or is the team leader
+            $isAssignedToTask = DB::table('task_members')
+                ->where('task_id', $taskId)
+                ->where('user_id', $user->id)
+                ->exists();
+    
+            $isTeamLeader = DB::table('project_role_user')
+                ->where('user_id', $user->id)
+                ->where('team_id', $task->team_id)
+                ->where('role_id', Role::ROLE_LEADER)
+                ->exists();
+    
+            if (!$isAssignedToTask && !$isTeamLeader) {
+                return $this->error('You are not authorized to update the task state.', 403);
+            }
+        }
+    
+        // Update the task state
+        $task->update(['status' => $request->state]);
+    
+        return $this->success(['task' => $task], 'Task state updated successfully.');
+    }
+
 }

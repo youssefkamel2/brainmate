@@ -36,7 +36,7 @@ class TaskNote extends Model
     protected $fillable = [
         'task_id',
         'user_id',
-        'note',
+        'description',
         'created_at',
     ];
 

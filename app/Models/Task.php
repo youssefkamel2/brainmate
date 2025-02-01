@@ -43,6 +43,25 @@ class Task extends Model
 
     protected $table = 'tasks';
 
+    public static $statuses = [
+        'pending',         // Task has been created but not yet started
+        'in_progress',     // Task is currently being worked on
+        'completed',       // Task has been finished
+        'cancelled',       // Task has been cancelled
+        // 'overdue',         // Task's deadline has passed and it was not completed
+        'on_hold',         // Task is temporarily paused
+        'in_review',       // Task is under review
+    ];
+
+    // Alternatively, you can define constants for each status
+    const STATUS_PENDING = 'pending';
+    const STATUS_IN_PROGRESS = 'in_progress';
+    const STATUS_COMPLETED = 'completed';
+    const STATUS_CANCELLED = 'cancelled';
+    // const STATUS_OVERDUE = 'overdue';
+    const STATUS_ON_HOLD = 'on_hold';
+    const STATUS_IN_REVIEW = 'in_review';
+
     protected $fillable = [
         'name',
         'team_id',
@@ -71,5 +90,10 @@ class Task extends Model
         return $this->belongsToMany(User::class, 'task_members')
                     ->withPivot('team_id', 'project_id')
                     ->withTimestamps();
+    }
+
+    public function notes()
+    {
+        return $this->hasMany(TaskNote::class);
     }
 }
