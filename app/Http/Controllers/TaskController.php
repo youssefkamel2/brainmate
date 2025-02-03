@@ -470,7 +470,7 @@ class TaskController extends Controller
         // Update the task status
         $task->update(['status' => $request->status]);
     
-        return $this->success(['status' => $task->status], 'Task status updated successfully.');
+        return $this->success(['status' => (string) $task->status], 'Task status updated successfully.');
     }
 
 }
