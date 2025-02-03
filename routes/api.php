@@ -88,7 +88,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/teams/{teamId}/tasks', [TaskController::class, 'getTeamTasks']); // Get team tasks
             Route::get('/', [TaskController::class, 'getAllTasks']); // Get all tasks (assigned to user or teams they belong to)
             Route::post('/{taskId}/notes', [TaskController::class, 'addTaskNote']); // Add task note
-            Route::put('/{taskId}/state', [TaskController::class, 'updateTaskState']); // update state
+            Route::put('/{taskId}/status', [TaskController::class, 'updateTaskStatus']); // update state
         });
 
         // [Personal Notes]

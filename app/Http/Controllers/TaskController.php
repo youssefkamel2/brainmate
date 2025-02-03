@@ -211,27 +211,34 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-
-        // check if the team exist
+    
+        // Check if the team exists
         $team = Team::find($teamId);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-
-        // Check if the user is part of the team (member or leader)
+    
+        // Check if the user is the manager of the project or part of the team (member or leader)
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id') // Manager has team_id = null
+            ->exists();
+    
         $isPartOfTeam = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $teamId)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->exists();
-
-        if (!$isPartOfTeam) {
-            return $this->error('You are not part of this team.', 403);
+    
+        if (!$isManager && !$isPartOfTeam) {
+            return $this->error('You are not authorized to view this team\'s tasks.', 403);
         }
-
+    
         // Get tasks for the team
         $tasks = Task::where('team_id', $teamId)->get();
-
+    
         // Format the response
         $formattedTasks = $tasks->map(function ($task) {
             return [
@@ -252,10 +259,9 @@ class TaskController extends Controller
                 }),
             ];
         });
-
+    
         return $this->success(['tasks' => $formattedTasks], 'Team tasks retrieved successfully.');
     }
-
     // Get All Tasks (Assigned to User or Teams They Belong To)
     public function getAllTasks(Request $request)
     {
@@ -411,14 +417,14 @@ class TaskController extends Controller
     return $this->success(['note' => $taskNote], 'Task note added successfully.');
     }
 
-    public function updateTaskState(Request $request, $taskId)
+    public function updateTaskStatus(Request $request, $taskId)
     {
         // Get the authenticated user
         $user = Auth::user();
     
         // Validate the request
         $validator = Validator::make($request->all(), [
-            'state' => 'required|in:' . implode(',', Task::$statuses),
+            'status' => 'required|integer|in:' . implode(',', array_keys(Task::$statuses)),
         ]);
     
         if ($validator->fails()) {
@@ -433,7 +439,7 @@ class TaskController extends Controller
     
         // Check if the task is already cancelled
         if ($task->status === Task::STATUS_CANCELLED) {
-            // Only the team leader can update the state of a cancelled task
+            // Only the team leader can update the status of a cancelled task
             $isTeamLeader = DB::table('project_role_user')
                 ->where('user_id', $user->id)
                 ->where('team_id', $task->team_id)
@@ -441,7 +447,7 @@ class TaskController extends Controller
                 ->exists();
     
             if (!$isTeamLeader) {
-                return $this->error('Only the team leader can update the state of a cancelled task.', 403);
+                return $this->error('Only the team leader can update the status of a cancelled task.', 403);
             }
         } else {
             // For non-cancelled tasks, check if the user is assigned to the task or is the team leader
@@ -457,14 +463,14 @@ class TaskController extends Controller
                 ->exists();
     
             if (!$isAssignedToTask && !$isTeamLeader) {
-                return $this->error('You are not authorized to update the task state.', 403);
+                return $this->error('You are not authorized to update the task status.', 403);
             }
         }
     
-        // Update the task state
-        $task->update(['status' => $request->state]);
+        // Update the task status
+        $task->update(['status' => $request->status]);
     
-        return $this->success(['task' => $task], 'Task state updated successfully.');
+        return $this->success(['status' => $task->status], 'Task status updated successfully.');
     }
 
 }
