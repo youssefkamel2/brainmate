@@ -44,15 +44,28 @@ class TaskController extends Controller
             return $this->error($validator->errors()->first(), 422);
         }
 
-        // Check if the user is a leader of the team
+        // Find the team
+        $team = Team::find($request->team_id);
+        if (!$team) {
+            return $this->error('Team not found.', 404);
+        }
+
+        // Check if the user is the manager of the project or the leader of the team
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id') // Manager has team_id = null
+            ->exists();
+
         $isLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $request->team_id)
             ->where('role_id', Role::ROLE_LEADER)
             ->exists();
 
-        if (!$isLeader) {
-            return $this->error('Only team leaders can create tasks.', 403);
+        if (!$isManager && !$isLeader) {
+            return $this->error('Only the project manager or team leader can create tasks.', 403);
         }
 
         // Validate that all selected members are part of the team
@@ -211,13 +224,13 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-    
+
         // Check if the team exists
         $team = Team::find($teamId);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-    
+
         // Check if the user is the manager of the project or part of the team (member or leader)
         $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -225,20 +238,20 @@ class TaskController extends Controller
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id') // Manager has team_id = null
             ->exists();
-    
+
         $isPartOfTeam = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $teamId)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->exists();
-    
+
         if (!$isManager && !$isPartOfTeam) {
             return $this->error('You are not authorized to view this team\'s tasks.', 403);
         }
-    
+
         // Get tasks for the team
         $tasks = Task::where('team_id', $teamId)->get();
-    
+
         // Format the response
         $formattedTasks = $tasks->map(function ($task) {
             return [
@@ -259,7 +272,7 @@ class TaskController extends Controller
                 }),
             ];
         });
-    
+
         return $this->success(['tasks' => $formattedTasks], 'Team tasks retrieved successfully.');
     }
     // Get All Tasks (Assigned to User or Teams They Belong To)
@@ -309,25 +322,25 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-    
+
         // Retrieve the task with its members and notes
         $task = Task::with(['members', 'notes.user'])->find($taskId);
-    
+
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
-    
+
         // Check if the user is part of the team (member or leader)
         $isPartOfTeam = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->exists();
-    
+
         if (!$isPartOfTeam) {
             return $this->error('You are not part of this team.', 403);
         }
-    
+
         // Format the response
         $formattedTask = [
             'id' => $task->id,
@@ -361,7 +374,7 @@ class TaskController extends Controller
                 ];
             }),
         ];
-    
+
         return $this->success(['task' => $formattedTask], 'Task retrieved successfully.');
     }
     // Helper Function: Get Member Color
@@ -377,66 +390,67 @@ class TaskController extends Controller
 
     // ============= task notes ============
 
-    public function addTaskNote(Request $request, $taskId){
-    // Get the authenticated user
-    $user = Auth::user();
+    public function addTaskNote(Request $request, $taskId)
+    {
+        // Get the authenticated user
+        $user = Auth::user();
 
-    // Validate the request
-    $validator = Validator::make($request->all(), [
-        'description' => 'required|string',
-    ]);
+        // Validate the request
+        $validator = Validator::make($request->all(), [
+            'description' => 'required|string',
+        ]);
 
-    if ($validator->fails()) {
-        return $this->error($validator->errors()->first(), 422);
-    }
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
 
-    // Find the task
-    $task = Task::find($taskId);
-    if (!$task) {
-        return $this->error('Task not found.', 404);
-    }
+        // Find the task
+        $task = Task::find($taskId);
+        if (!$task) {
+            return $this->error('Task not found.', 404);
+        }
 
-    // Check if the user is part of the team (member or leader)
-    $isPartOfTeam = DB::table('project_role_user')
-        ->where('user_id', $user->id)
-        ->where('team_id', $task->team_id)
-        ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
-        ->exists();
+        // Check if the user is part of the team (member or leader)
+        $isPartOfTeam = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $task->team_id)
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->exists();
 
-    if (!$isPartOfTeam) {
-        return $this->error('You are not part of this team.', 403);
-    }
+        if (!$isPartOfTeam) {
+            return $this->error('You are not part of this team.', 403);
+        }
 
-    // Create the task note
-    $taskNote = TaskNote::create([
-        'task_id' => $taskId,
-        'user_id' => $user->id,
-        'description' => $request->description,
-    ]);
+        // Create the task note
+        $taskNote = TaskNote::create([
+            'task_id' => $taskId,
+            'user_id' => $user->id,
+            'description' => $request->description,
+        ]);
 
-    return $this->success(['note' => $taskNote], 'Task note added successfully.');
+        return $this->success(['note' => $taskNote], 'Task note added successfully.');
     }
 
     public function updateTaskStatus(Request $request, $taskId)
     {
         // Get the authenticated user
         $user = Auth::user();
-    
+
         // Validate the request
         $validator = Validator::make($request->all(), [
             'status' => 'required|integer|in:' . implode(',', array_keys(Task::$statuses)),
         ]);
-    
+
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
-    
+
         // Find the task
         $task = Task::find($taskId);
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
-    
+
         // Check if the task is already cancelled
         if ($task->status === Task::STATUS_CANCELLED) {
             // Only the team leader can update the status of a cancelled task
@@ -445,7 +459,7 @@ class TaskController extends Controller
                 ->where('team_id', $task->team_id)
                 ->where('role_id', Role::ROLE_LEADER)
                 ->exists();
-    
+
             if (!$isTeamLeader) {
                 return $this->error('Only the team leader can update the status of a cancelled task.', 403);
             }
@@ -455,22 +469,21 @@ class TaskController extends Controller
                 ->where('task_id', $taskId)
                 ->where('user_id', $user->id)
                 ->exists();
-    
+
             $isTeamLeader = DB::table('project_role_user')
                 ->where('user_id', $user->id)
                 ->where('team_id', $task->team_id)
                 ->where('role_id', Role::ROLE_LEADER)
                 ->exists();
-    
+
             if (!$isAssignedToTask && !$isTeamLeader) {
                 return $this->error('You are not authorized to update the task status.', 403);
             }
         }
-    
+
         // Update the task status
         $task->update(['status' => $request->status]);
-    
+
         return $this->success(['status' => (string) $task->status], 'Task status updated successfully.');
     }
-
 }
