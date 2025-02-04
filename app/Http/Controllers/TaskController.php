@@ -452,7 +452,7 @@ class TaskController extends Controller
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
-        $team = Team::find($request->team_id);
+        $team = Team::find($task->team_id);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
