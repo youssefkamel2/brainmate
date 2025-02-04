@@ -111,7 +111,7 @@ class TaskController extends Controller
         return $this->success(['task' => $task], 'Task created successfully.');
     }
 
-    // Update Task (Team Leader Only)
+    // Update Task (Team Leader & manager)
     public function updateTask(Request $request, $taskId)
     {
         // Get the authenticated user
@@ -139,15 +139,22 @@ class TaskController extends Controller
             return $this->error('Task not found.', 404);
         }
 
-        // Check if the user is a leader of the team
+        // Check if the user is the manager of the project or the leader of the team
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $task->team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id') // Manager has team_id = null
+            ->exists();
+
         $isLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_LEADER)
             ->exists();
 
-        if (!$isLeader) {
-            return $this->error('Only team leaders can update tasks.', 403);
+        if (!$isLeader && !$isManager) {
+            return $this->error('Only team leaders and managers can update tasks.', 403);
         }
 
         // Validate that all selected members are part of the team
@@ -189,7 +196,7 @@ class TaskController extends Controller
         return $this->success(['task' => $task], 'Task updated successfully.');
     }
 
-    // Delete Task (Team Leader Only)
+    // Delete Task (Team Leader & manager)
     public function deleteTask($taskId)
     {
         // Get the authenticated user
@@ -201,15 +208,22 @@ class TaskController extends Controller
             return $this->error('Task not found.', 404);
         }
 
-        // Check if the user is a leader of the team
+        // Check if the user is the manager of the project or the leader of the team
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $task->team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id') // Manager has team_id = null
+            ->exists();
+
         $isLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_LEADER)
             ->exists();
 
-        if (!$isLeader) {
-            return $this->error('Only team leaders can delete tasks.', 403);
+        if (!$isManager && !$isLeader) {
+            return $this->error('Only the project manager or team leader can delete tasks.', 403);
         }
 
         // Delete the task and its members
@@ -430,8 +444,6 @@ class TaskController extends Controller
 
         return $this->success(['note' => $taskNote], 'Task note added successfully.');
     }
-
-
     public function updateTaskStatus(Request $request, $taskId)
     {
         // Get the authenticated user
