@@ -21,7 +21,7 @@ class TaskController extends Controller
 
     use ResponseTrait;
 
-    // Create Task (Team Leader Only)
+    // Create Task (Team Leader & manager Only)
     public function createTask(Request $request)
     {
         // Get the authenticated user
@@ -431,6 +431,7 @@ class TaskController extends Controller
         return $this->success(['note' => $taskNote], 'Task note added successfully.');
     }
 
+
     public function updateTaskStatus(Request $request, $taskId)
     {
         // Get the authenticated user
@@ -451,32 +452,34 @@ class TaskController extends Controller
             return $this->error('Task not found.', 404);
         }
 
-        // Check if the task is already cancelled
-        if ($task->status === Task::STATUS_CANCELLED) {
-            // Only the team leader can update the status of a cancelled task
-            $isTeamLeader = DB::table('project_role_user')
-                ->where('user_id', $user->id)
-                ->where('team_id', $task->team_id)
-                ->where('role_id', Role::ROLE_LEADER)
-                ->exists();
+        // Check if the user is a manager
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->exists();
 
-            if (!$isTeamLeader) {
-                return $this->error('Only the team leader can update the status of a cancelled task.', 403);
+        // Check if the user is a team leader
+        $isTeamLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->exists();
+
+        // Check if the user is assigned to the task
+        $isAssignedToTask = DB::table('task_members')
+            ->where('task_id', $taskId)
+            ->where('user_id', $user->id)
+            ->exists();
+
+        // Allow managers and team leaders to update all task statuses, including cancelled ones
+        if ($task->status === Task::STATUS_CANCELLED) {
+            if (!$isTeamLeader && !$isManager) {
+                return $this->error('Only the team leader or manager can update the status of a cancelled task.', 403);
             }
         } else {
-            // For non-cancelled tasks, check if the user is assigned to the task or is the team leader
-            $isAssignedToTask = DB::table('task_members')
-                ->where('task_id', $taskId)
-                ->where('user_id', $user->id)
-                ->exists();
-
-            $isTeamLeader = DB::table('project_role_user')
-                ->where('user_id', $user->id)
-                ->where('team_id', $task->team_id)
-                ->where('role_id', Role::ROLE_LEADER)
-                ->exists();
-
-            if (!$isAssignedToTask && !$isTeamLeader) {
+            // For non-cancelled tasks, allow the assigned user, team leader, or manager to update the status
+            if (!$isAssignedToTask && !$isTeamLeader && !$isManager) {
                 return $this->error('You are not authorized to update the task status.', 403);
             }
         }
