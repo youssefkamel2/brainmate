@@ -437,6 +437,7 @@ class TaskController extends Controller
         // Get the authenticated user
         $user = Auth::user();
 
+
         // Validate the request
         $validator = Validator::make($request->all(), [
             'status' => 'required|integer|in:' . implode(',', array_keys(Task::$statuses)),
@@ -451,12 +452,17 @@ class TaskController extends Controller
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
+        $team = Team::find($request->team_id);
+        if (!$team) {
+            return $this->error('Team not found.', 404);
+        }
 
         // Check if the user is a manager
         $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
-            ->where('team_id', $task->team_id)
+            ->where('project_id', $team->project_id)
             ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id') // Manager has team_id = null
             ->exists();
 
         // Check if the user is a team leader
