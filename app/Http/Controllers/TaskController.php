@@ -14,6 +14,7 @@ use App\Traits\ResponseTrait;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use App\Notifications\TaskAssignedNotification;
 
 
 class TaskController extends Controller
@@ -105,6 +106,11 @@ class TaskController extends Controller
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
+
+                $member = User::find($memberId);
+                if ($member) {
+                    $member->notify(new TaskAssignedNotification($task));
+                }
             }
         }
 
