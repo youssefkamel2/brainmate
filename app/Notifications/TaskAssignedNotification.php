@@ -46,7 +46,6 @@ class TaskAssignedNotification extends Notification implements ShouldQueue
             ->line('Description: ' . $this->task->description)
             ->line('Priority: ' . ucfirst($this->task->priority))
             ->line('Deadline: ' . $this->task->deadline)
-            ->action('View Task', 'https://brainmate.vercel.app') // Replace with your task URL
-            ->line('Thank you for using our application!');
+            ->action('View Task', 'https://brainmate.vercel.app');
     }
 }
