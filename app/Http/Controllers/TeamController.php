@@ -800,7 +800,7 @@ class TeamController extends Controller
     
             // Add the manager role to these teams, and set team_id to null if it's a manager
             $managedTeams = $managedTeams->map(function ($team) {
-                $team->role = 'manager';
+                $team->role = 'manager'; // Set role as manager
                 return $team;
             });
     
@@ -816,25 +816,26 @@ class TeamController extends Controller
             // If the user is a project manager, set the role to 'manager' for all teams in the managed projects
             if ($isProjectManager) {
                 $role = 'manager';
-                $team->project->is_manager = true;  // Add the is_manager flag to the project
             } else {
                 // Otherwise, determine the user's role in the team
                 $role = $team->role_id == Role::ROLE_LEADER ? 'leader' : ($team->role_id == Role::ROLE_MANAGER ? 'manager' : 'member');
-                $team->project->is_manager = false; // User is not a project manager for this team
             }
     
-            // Add the role and project details to the team object
-            $team->role = $role;
-            $team->has_access = 'true';
-            $team->project = [
-                'id' => $team->project_id,
+            // Safely handle the project object and always set is_manager flag
+            $project = [
+                'id' => $team->project_id, // Ensure project_id is never null
                 'name' => $team->project_name,
                 'description' => $team->project_description,
                 'status' => $team->project_status,
                 'created_at' => $team->project_created_at,
                 'updated_at' => $team->project_updated_at,
-                'is_manager' => $team->project->is_manager,  // Add is_manager flag to project object
+                'is_manager' => $isProjectManager,  // Add is_manager flag to project object
             ];
+    
+            // Add the role and project details to the team object
+            $team->role = $role;
+            $team->has_access = true;  // Assuming true for all teams
+            $team->project = $project;
     
             // Remove unnecessary fields
             unset($team->project_id, $team->project_name, $team->project_description, $team->project_status, $team->project_created_at, $team->project_updated_at);
@@ -849,6 +850,7 @@ class TeamController extends Controller
             'teams' => $formattedTeams,
         ], 'User teams retrieved successfully.');
     }
+    
     
 
     // Get Team Users
