@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\UserController;
@@ -138,6 +139,13 @@ Route::prefix('v1')->group(function () {
             Route::get('/', [UserController::class, 'getProfile']);
             Route::put('/', [UserController::class, 'updateProfile']);
             Route::put('/password', [UserController::class, 'updatePassword']);
+        });
+
+        // chat
+        Route::prefix('chat')->group(function () {
+            Route::get('/teams', [ChatController::class, 'getChatTeams']);
+            Route::get('/messages/{teamId}', [ChatController::class, 'getMessages']);
+            Route::post('/send', [ChatController::class, 'sendMessage']);
         });
     });
     
