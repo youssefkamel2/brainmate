@@ -13,13 +13,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Validator;
 
-
 class ChatController extends Controller
 {
     use ResponseTrait;
 
     // Get teams that the user can chat in
-    public function getChatTeams(){
+    public function getChatTeams()
+    {
         $user = Auth::user();
 
         // Step 1: Get all projects where the user is a manager
@@ -121,7 +121,14 @@ class ChatController extends Controller
     // Get messages for a specific team
     public function getMessages($teamId)
     {
-        $messages = Chat::where('team_id', $teamId)
+        $user = Auth::user();
+
+        // Check if the user has access to the team
+        if (!$this->userHasAccessToTeam($user, $teamId)) {
+            return $this->error('You do not have access to this team.', 403);
+        }
+
+        $messages = Chat::with('sender')->where('team_id', $teamId)
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
@@ -131,7 +138,8 @@ class ChatController extends Controller
     // Send a message
     public function sendMessage(Request $request)
     {
-    
+        $user = Auth::user();
+
         $validator = Validator::make($request->all(), [
             'message' => 'required|string',
             'team_id' => 'nullable|exists:teams,id',
@@ -143,24 +151,57 @@ class ChatController extends Controller
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
-        
+
+        // Check if the user has access to the team
+        if (!$this->userHasAccessToTeam($user, $request->team_id)) {
+            return $this->error('You do not have access to this team.', 403);
+        }
+
         $chat = Chat::create([
-            'sender_id' => Auth::id(),
+            'sender_id' => $user->id,
             'receiver_id' => $request->receiver_id,
             'team_id' => $request->team_id,
             'message' => $request->message,
             'type' => $request->type,
             'media' => $request->media
         ]);
-    
+
         // Broadcast the message to the team's channel
         Broadcast::channel('team.' . $request->team_id, function ($user) {
             return true; // Allow all users to listen to the channel
         });
-    
+
         // Trigger the Pusher event
         broadcast(new \App\Events\NewChatMessage($chat))->toOthers();
-    
+
         return $this->success($chat, 'Message sent successfully.', 201);
+    }
+
+    /**
+     * Check if the user has access to the team.
+     *
+     * @param \App\Models\User $user
+     * @param int $teamId
+     * @return bool
+     */
+    private function userHasAccessToTeam($user, $teamId){
+        $isMemberOrLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $teamId)
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->exists();
+    
+        $isProjectManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereExists(function ($query) use ($teamId) {
+                $query->select(DB::raw(1))
+                    ->from('teams')
+                    ->whereColumn('teams.project_id', 'project_role_user.project_id')
+                    ->where('teams.id', $teamId);
+            })
+            ->exists();
+    
+        return $isMemberOrLeader || $isProjectManager;
     }
 }
