@@ -834,7 +834,7 @@ class TeamController extends Controller
     
             // Add the role and project details to the team object
             $team->role = $role;
-            $team->has_access = true;  // Assuming true for all teams
+            $team->hasAccess = true;  // Assuming true for all teams
             $team->project = $project;
     
             // Remove unnecessary fields
