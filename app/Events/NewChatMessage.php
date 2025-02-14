@@ -19,9 +19,9 @@ class NewChatMessage implements ShouldBroadcast
 
     public function __construct(Chat $chat)
     {
-        $this->chat = $chat;
+        // Eager load the sender relationship
+        $this->chat = $chat->load('sender');
         \Log::info('NewChatMessage event triggered:', $chat->toArray());
-
     }
 
     public function broadcastOn()
@@ -38,7 +38,7 @@ class NewChatMessage implements ShouldBroadcast
 
     public function broadcastWith()
     {
-        // Include the chat message data in the broadcast
+        // Include the chat message data and sender object in the broadcast
         return [
             'id' => $this->chat->id,
             'sender_id' => $this->chat->sender_id,
@@ -48,6 +48,8 @@ class NewChatMessage implements ShouldBroadcast
             'type' => $this->chat->type,
             'media' => $this->chat->media,
             'created_at' => $this->chat->created_at,
+            'updated_at' => $this->chat->updated_at,
+            'sender' => $this->chat->sender, // Include the sender object
         ];
     }
 }

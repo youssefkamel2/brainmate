@@ -137,45 +137,63 @@ class ChatController extends Controller
 
     // Send a message
     public function sendMessage(Request $request)
-    {
-        $user = Auth::user();
+{
+    $user = Auth::user();
 
-        $validator = Validator::make($request->all(), [
-            'message' => 'required|string',
-            'team_id' => 'nullable|exists:teams,id',
-            'receiver_id' => 'nullable|exists:users,id',
-            'type' => 'required|in:text,file,image',
-            'media' => 'nullable|string'
-        ]);
+    $validator = Validator::make($request->all(), [
+        'message' => 'required|string',
+        'team_id' => 'nullable|exists:teams,id',
+        'receiver_id' => 'nullable|exists:users,id',
+        'type' => 'required|in:text,file,image',
+        'media' => 'nullable|string'
+    ]);
 
-        if ($validator->fails()) {
-            return $this->error($validator->errors()->first(), 422);
-        }
-
-        // Check if the user has access to the team
-        if (!$this->userHasAccessToTeam($user, $request->team_id)) {
-            return $this->error('You do not have access to this team.', 403);
-        }
-
-        $chat = Chat::create([
-            'sender_id' => $user->id,
-            'receiver_id' => $request->receiver_id,
-            'team_id' => $request->team_id,
-            'message' => $request->message,
-            'type' => $request->type,
-            'media' => $request->media
-        ]);
-
-        // Broadcast the message to the team's channel
-        Broadcast::channel('team.' . $request->team_id, function ($user) {
-            return true; // Allow all users to listen to the channel
-        });
-
-        // Trigger the Pusher event
-        broadcast(new \App\Events\NewChatMessage($chat))->toOthers();
-
-        return $this->success($chat, 'Message sent successfully.', 201);
+    if ($validator->fails()) {
+        return $this->error($validator->errors()->first(), 422);
     }
+
+    // Check if the user has access to the team
+    if (!$this->userHasAccessToTeam($user, $request->team_id)) {
+        return $this->error('You do not have access to this team.', 403);
+    }
+
+    // Create the chat message
+    $chat = Chat::create([
+        'sender_id' => $user->id,
+        'receiver_id' => $request->receiver_id,
+        'team_id' => $request->team_id,
+        'message' => $request->message,
+        'type' => $request->type,
+        'media' => $request->media
+    ]);
+
+    // Eager load the sender relationship
+    $chat->load('sender');
+
+    // Broadcast the message to the team's channel
+    Broadcast::channel('team.' . $request->team_id, function ($user) {
+        return true; 
+    });
+
+    // Trigger the Pusher event
+    broadcast(new \App\Events\NewChatMessage($chat))->toOthers();
+
+    // Format the response to include the sender object
+    $responseData = [
+        'id' => $chat->id,
+        'sender_id' => $chat->sender_id,
+        'receiver_id' => $chat->receiver_id,
+        'team_id' => $chat->team_id,
+        'message' => $chat->message,
+        'type' => $chat->type,
+        'media' => $chat->media,
+        'created_at' => $chat->created_at,
+        'updated_at' => $chat->updated_at,
+        'sender' => $chat->sender, // Include the sender object
+    ];
+
+    return $this->success($responseData, 'Message sent successfully.', 201);
+}
 
     /**
      * Check if the user has access to the team.
