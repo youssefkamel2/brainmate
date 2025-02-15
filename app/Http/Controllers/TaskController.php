@@ -463,27 +463,28 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-
-
+    
         // Validate the request
         $validator = Validator::make($request->all(), [
-            'status' => 'required|integer|in:' . implode(',', array_keys(Task::$statuses)),
+            'status' => 'required|integer|in:' . implode(',', array_keys(Task::$statusTexts)), // Use Task::$statusTexts for validation
         ]);
-
+    
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
-
+    
         // Find the task
         $task = Task::find($taskId);
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
+    
+        // Find the team associated with the task
         $team = Team::find($task->team_id);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-
+    
         // Check if the user is a manager
         $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -491,20 +492,20 @@ class TaskController extends Controller
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id') // Manager has team_id = null
             ->exists();
-
+    
         // Check if the user is a team leader
         $isTeamLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_LEADER)
             ->exists();
-
+    
         // Check if the user is assigned to the task
         $isAssignedToTask = DB::table('task_members')
             ->where('task_id', $taskId)
             ->where('user_id', $user->id)
             ->exists();
-
+    
         // Allow managers and team leaders to update all task statuses, including cancelled ones
         if ($task->status === Task::STATUS_CANCELLED) {
             if (!$isTeamLeader && !$isManager) {
@@ -516,10 +517,15 @@ class TaskController extends Controller
                 return $this->error('You are not authorized to update the task status.', 403);
             }
         }
-
+    
         // Update the task status
-        $task->update(['status' => $request->status]);
-
-        return $this->success(['status' => (string) $task->status], 'Task status updated successfully.');
+        $task->status = $request->status;
+        $task->save();
+    
+        // Return the updated status and its text representation
+        return $this->success([
+            'status' => $task->status,
+            'status_text' => $task->status_text, // Use the accessor to get the status text
+        ], 'Task status updated successfully.');
     }
 }
