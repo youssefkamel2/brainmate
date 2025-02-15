@@ -48,7 +48,7 @@ class Task extends Model
         'in_progress',     // Task is currently being worked on
         'completed',       // Task has been finished
         'cancelled',       // Task has been cancelled
-        // 'overdue',         // Task's deadline has passed and it was not completed
+        'overdue',         // Task's deadline has passed and it was not completed
         'on_hold',         // Task is temporarily paused
         'in_review',       // Task is under review
     ];
@@ -58,7 +58,7 @@ class Task extends Model
     const STATUS_IN_PROGRESS = 'in_progress';
     const STATUS_COMPLETED = 'completed';
     const STATUS_CANCELLED = 'cancelled';
-    // const STATUS_OVERDUE = 'overdue';
+    const STATUS_OVERDUE = 'overdue';
     const STATUS_ON_HOLD = 'on_hold';
     const STATUS_IN_REVIEW = 'in_review';
 
@@ -95,5 +95,15 @@ class Task extends Model
     public function notes()
     {
         return $this->hasMany(TaskNote::class);
+    }
+
+    public function checkAndUpdateOverdueStatus()
+    {
+        if ($this->deadline && now()->gt($this->deadline)) {
+            if ($this->status !== self::STATUS_COMPLETED && $this->status !== self::STATUS_CANCELLED) {
+                $this->status = self::STATUS_OVERDUE;
+                $this->save();
+            }
+        }
     }
 }

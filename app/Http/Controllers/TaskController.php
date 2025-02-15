@@ -239,7 +239,6 @@ class TaskController extends Controller
         return $this->success([], 'Task deleted successfully.');
     }
 
-    // Get Team Tasks
     public function getTeamTasks($teamId)
     {
         // Get the authenticated user
@@ -272,6 +271,11 @@ class TaskController extends Controller
         // Get tasks for the team
         $tasks = Task::where('team_id', $teamId)->get();
 
+        // Check for overdue tasks and update their status
+        foreach ($tasks as $task) {
+            $task->checkAndUpdateOverdueStatus();
+        }
+
         // Format the response
         $formattedTasks = $tasks->map(function ($task) {
             return [
@@ -295,7 +299,7 @@ class TaskController extends Controller
 
         return $this->success(['tasks' => $formattedTasks], 'Team tasks retrieved successfully.');
     }
-    // Get All Tasks (Assigned to User or Teams They Belong To)
+
     public function getAllTasks(Request $request)
     {
         // Get the authenticated user
@@ -310,6 +314,11 @@ class TaskController extends Controller
 
         // Get all tasks in these teams
         $tasks = Task::whereIn('team_id', $teamIds)->get();
+
+        // Check for overdue tasks and update their status
+        foreach ($tasks as $task) {
+            $task->checkAndUpdateOverdueStatus();
+        }
 
         // Format the response
         $formattedTasks = $tasks->map(function ($task) use ($user) {

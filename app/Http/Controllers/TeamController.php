@@ -851,7 +851,7 @@ class TeamController extends Controller
         ], 'User teams retrieved successfully.');
     }
     
-    
+
 
     // Get Team Users
     public function getTeamUsers($teamId)
