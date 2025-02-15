@@ -466,7 +466,7 @@ class TaskController extends Controller
     
         // Validate the request
         $validator = Validator::make($request->all(), [
-            'status' => 'required|integer|in:' . implode(',', array_keys(Task::$statusTexts)), // Use Task::$statusTexts for validation
+            'status' => 'required|integer|in:' . implode(',', array_keys(Task::$statusTexts)),
         ]);
     
         if ($validator->fails()) {
@@ -479,55 +479,22 @@ class TaskController extends Controller
             return $this->error('Task not found.', 404);
         }
     
-        // Find the team associated with the task
-        $team = Team::find($task->team_id);
-        if (!$team) {
-            return $this->error('Team not found.', 404);
-        }
-    
-        // Check if the user is a manager
-        $isManager = DB::table('project_role_user')
-            ->where('user_id', $user->id)
-            ->where('project_id', $team->project_id)
-            ->where('role_id', Role::ROLE_MANAGER)
-            ->whereNull('team_id') // Manager has team_id = null
-            ->exists();
-    
-        // Check if the user is a team leader
-        $isTeamLeader = DB::table('project_role_user')
-            ->where('user_id', $user->id)
-            ->where('team_id', $task->team_id)
-            ->where('role_id', Role::ROLE_LEADER)
-            ->exists();
-    
-        // Check if the user is assigned to the task
-        $isAssignedToTask = DB::table('task_members')
-            ->where('task_id', $taskId)
-            ->where('user_id', $user->id)
-            ->exists();
-    
-        // Allow managers and team leaders to update all task statuses, including cancelled ones
-        if ($task->status === Task::STATUS_CANCELLED) {
-            if (!$isTeamLeader && !$isManager) {
-                return $this->error('Only the team leader or manager can update the status of a cancelled task.', 403);
-            }
-        } else {
-            // For non-cancelled tasks, allow the assigned user, team leader, or manager to update the status
-            if (!$isAssignedToTask && !$isTeamLeader && !$isManager) {
-                return $this->error('You are not authorized to update the task status.', 403);
+        // Check if the task is overdue
+        if ($task->status === Task::STATUS_OVERDUE) {
+            // If the task is overdue, only allow changing to completed or cancelled
+            if ($request->status !== Task::STATUS_COMPLETED && $request->status !== Task::STATUS_CANCELLED) {
+                return $this->error('Overdue tasks can only be marked as completed or cancelled.', 403);
             }
         }
     
         // Update the task status
         $task->status = $request->status;
         $task->save();
-
-        $task->checkAndUpdateOverdueStatus();
     
         // Return the updated status and its text representation
         return $this->success([
             'status' => $task->status,
-            'status_text' => $task->status_text, // Use the accessor to get the status text
+            'status_text' => $task->status_text,
         ], 'Task status updated successfully.');
     }
 }

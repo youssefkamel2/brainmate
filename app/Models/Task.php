@@ -83,13 +83,6 @@ class Task extends Model
                 $this->status = self::STATUS_OVERDUE;
                 $this->save();
             }
-        } else {
-            // If the task is overdue but the deadline is now in the future, revert to the previous status
-            if ($this->status === self::STATUS_OVERDUE) {
-                // Revert to the previous status (e.g., pending or in_progress)
-                $this->status = self::STATUS_PENDING; // Or another appropriate status
-                $this->save();
-            }
         }
     }
 
