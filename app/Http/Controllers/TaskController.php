@@ -521,6 +521,8 @@ class TaskController extends Controller
         // Update the task status
         $task->status = $request->status;
         $task->save();
+
+        $task->checkAndUpdateOverdueStatus();
     
         // Return the updated status and its text representation
         return $this->success([

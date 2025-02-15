@@ -71,9 +71,23 @@ class Task extends Model
      */
     public function checkAndUpdateOverdueStatus()
     {
-        if ($this->deadline && now()->gt($this->deadline)) {
+        // If the task has no deadline, do nothing
+        if (!$this->deadline) {
+            return;
+        }
+    
+        // Check if the task is overdue
+        if (now()->gt($this->deadline)) {
+            // If the task is not completed or cancelled, mark it as overdue
             if ($this->status !== self::STATUS_COMPLETED && $this->status !== self::STATUS_CANCELLED) {
                 $this->status = self::STATUS_OVERDUE;
+                $this->save();
+            }
+        } else {
+            // If the task is overdue but the deadline is now in the future, revert to the previous status
+            if ($this->status === self::STATUS_OVERDUE) {
+                // Revert to the previous status (e.g., pending or in_progress)
+                $this->status = self::STATUS_PENDING; // Or another appropriate status
                 $this->save();
             }
         }
