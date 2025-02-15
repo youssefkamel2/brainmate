@@ -243,13 +243,13 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-
+    
         // Check if the team exists
         $team = Team::find($teamId);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-
+    
         // Check if the user is the manager of the project or part of the team (member or leader)
         $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -257,25 +257,20 @@ class TaskController extends Controller
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id') // Manager has team_id = null
             ->exists();
-
+    
         $isPartOfTeam = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $teamId)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->exists();
-
+    
         if (!$isManager && !$isPartOfTeam) {
             return $this->error('You are not authorized to view this team\'s tasks.', 403);
         }
-
+    
         // Get tasks for the team
         $tasks = Task::where('team_id', $teamId)->get();
-
-        // Check for overdue tasks and update their status
-        foreach ($tasks as $task) {
-            $task->checkAndUpdateOverdueStatus();
-        }
-
+    
         // Format the response
         $formattedTasks = $tasks->map(function ($task) {
             return [
@@ -286,6 +281,7 @@ class TaskController extends Controller
                 'priority' => $task->priority,
                 'deadline' => $task->deadline,
                 'status' => $task->status,
+                'is_overdue' => $task->is_overdue, // Add the overdue flag
                 'team_id' => $task->team_id,
                 'members' => $task->members->map(function ($member) {
                     return [
@@ -296,7 +292,7 @@ class TaskController extends Controller
                 }),
             ];
         });
-
+    
         return $this->success(['tasks' => $formattedTasks], 'Team tasks retrieved successfully.');
     }
 
@@ -304,22 +300,17 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-
+    
         // Get all teams where the user is a member or leader
         $teamIds = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->pluck('team_id')
             ->toArray();
-
+    
         // Get all tasks in these teams
         $tasks = Task::whereIn('team_id', $teamIds)->get();
-
-        // Check for overdue tasks and update their status
-        foreach ($tasks as $task) {
-            $task->checkAndUpdateOverdueStatus();
-        }
-
+    
         // Format the response
         $formattedTasks = $tasks->map(function ($task) use ($user) {
             return [
@@ -330,6 +321,7 @@ class TaskController extends Controller
                 'priority' => $task->priority,
                 'deadline' => $task->deadline,
                 'status' => $task->status,
+                'is_overdue' => $task->is_overdue, // Add the overdue flag
                 'team_id' => $task->team_id,
                 'assigned_to_me' => $task->members->contains('id', $user->id),
                 'members' => $task->members->map(function ($member) {
@@ -341,7 +333,7 @@ class TaskController extends Controller
                 }),
             ];
         });
-
+    
         return $this->success(['tasks' => $formattedTasks], 'All tasks retrieved successfully.');
     }
 
@@ -477,14 +469,6 @@ class TaskController extends Controller
         $task = Task::find($taskId);
         if (!$task) {
             return $this->error('Task not found.', 404);
-        }
-    
-        // Check if the task is overdue
-        if ($task->status === Task::STATUS_OVERDUE) {
-            // If the task is overdue, only allow changing to completed or cancelled
-            if ($request->status !== Task::STATUS_COMPLETED && $request->status !== Task::STATUS_CANCELLED) {
-                return $this->error('Overdue tasks can only be marked as completed or cancelled.', 403);
-            }
         }
     
         // Update the task status
