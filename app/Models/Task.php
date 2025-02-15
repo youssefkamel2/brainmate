@@ -1,66 +1,35 @@
-<?php 
+<?php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * App\Models\Task
- *
- * @property int $id
- * @property string $name
- * @property int $team_id
- * @property string|null $description
- * @property string|null $tags
- * @property string $priority
- * @property string|null $deadline
- * @property int $status
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\User> $members
- * @property-read int|null $members_count
- * @property-read \App\Models\Project|null $project
- * @property-read \App\Models\Team $team
- * @method static \Illuminate\Database\Eloquent\Builder|Task newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|Task newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|Task query()
- * @method static \Illuminate\Database\Eloquent\Builder|Task whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Task whereDeadline($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Task whereDescription($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Task whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Task whereName($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Task wherePriority($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Task whereStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Task whereTags($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Task whereTeamId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Task whereUpdatedAt($value)
- * @mixin \Eloquent
- */
 class Task extends Model
 {
     use HasFactory;
 
     protected $table = 'tasks';
 
-    public static $statuses = [
-        'pending',         // Task has been created but not yet started
-        'in_progress',     // Task is currently being worked on
-        'completed',       // Task has been finished
-        'cancelled',       // Task has been cancelled
-        'overdue',         // Task's deadline has passed and it was not completed
-        'on_hold',         // Task is temporarily paused
-        'in_review',       // Task is under review
-    ];
+    // Define status constants as numbers
+    const STATUS_PENDING = 1;      // Task has been created but not yet started
+    const STATUS_IN_PROGRESS = 2;  // Task is currently being worked on
+    const STATUS_COMPLETED = 3;    // Task has been finished
+    const STATUS_CANCELLED = 4;    // Task has been cancelled
+    const STATUS_OVERDUE = 5;      // Task's deadline has passed and it was not completed
+    const STATUS_ON_HOLD = 6;      // Task is temporarily paused
+    const STATUS_IN_REVIEW = 7;    // Task is under review
 
-    // Alternatively, you can define constants for each status
-    const STATUS_PENDING = 'pending';
-    const STATUS_IN_PROGRESS = 'in_progress';
-    const STATUS_COMPLETED = 'completed';
-    const STATUS_CANCELLED = 'cancelled';
-    const STATUS_OVERDUE = 'overdue';
-    const STATUS_ON_HOLD = 'on_hold';
-    const STATUS_IN_REVIEW = 'in_review';
+    // Map status numbers to their corresponding text labels
+    public static $statusTexts = [
+        self::STATUS_PENDING => 'pending',
+        self::STATUS_IN_PROGRESS => 'in_progress',
+        self::STATUS_COMPLETED => 'completed',
+        self::STATUS_CANCELLED => 'cancelled',
+        self::STATUS_OVERDUE => 'overdue',
+        self::STATUS_ON_HOLD => 'on_hold',
+        self::STATUS_IN_REVIEW => 'in_review',
+    ];
 
     protected $fillable = [
         'name',
@@ -69,7 +38,7 @@ class Task extends Model
         'tags',
         'priority',
         'deadline',
-        'status',
+        'status', // Status is stored as a number
         'created_at',
         'updated_at',
     ];
@@ -97,6 +66,9 @@ class Task extends Model
         return $this->hasMany(TaskNote::class);
     }
 
+    /**
+     * Check if the task is overdue and update its status.
+     */
     public function checkAndUpdateOverdueStatus()
     {
         if ($this->deadline && now()->gt($this->deadline)) {
@@ -105,5 +77,13 @@ class Task extends Model
                 $this->save();
             }
         }
+    }
+
+    /**
+     * Get the text representation of the status.
+     */
+    public function getStatusTextAttribute()
+    {
+        return self::$statusTexts[$this->status] ?? 'unknown';
     }
 }

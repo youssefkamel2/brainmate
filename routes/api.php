@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\UserController;
@@ -49,6 +50,12 @@ Route::prefix('v1')->group(function () {
     // Protected Routes (Require API Authentication)
     Route::middleware('auth:api')->group(function () {
 
+
+        Route::prefix('home')->group(function () {
+            Route::get('/to-do-list', [HomeController::class, 'getToDoList']);
+            Route::get('/task-statistics', [HomeController::class, 'getTaskStatistics']);
+            Route::get('/in-review', [HomeController::class, 'getInReviewTasks']);
+        });
 
         Route::prefix('user')->group(function () {
             Route::get('/', [AuthController::class, 'user']);
