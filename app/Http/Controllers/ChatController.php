@@ -177,7 +177,10 @@ class ChatController extends Controller
 
     // Trigger the Pusher event
     broadcast(new \App\Events\NewChatMessage($chat))->toOthers();
+    // Trigger the Pusher event for the last message update
 
+    broadcast(new \App\Events\LastMessageUpdated($chat))->toOthers();
+    
     // Format the response to include the sender object
     $responseData = [
         'id' => $chat->id,
