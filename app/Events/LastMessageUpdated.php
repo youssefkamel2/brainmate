@@ -14,14 +14,17 @@ class LastMessageUpdated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $chat;
+    public $chat, $color;
 
     /**
      * Create a new event instance.
      */
-    public function __construct(Chat $chat)
+    public function __construct(Chat $chat, $color)
     {
+        // Eager load the sender relationship
         $this->chat = $chat->load('sender');
+        $this->color = $color;
+
     }
 
     /**
@@ -47,6 +50,7 @@ class LastMessageUpdated implements ShouldBroadcast
                 'sender' => [
                     'id' => $this->chat->sender->id,
                     'name' => $this->chat->sender->name,
+                    'color' => $this->color,
                 ],
             ],
         ];

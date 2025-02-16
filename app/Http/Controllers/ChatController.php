@@ -5,29 +5,30 @@ namespace App\Http\Controllers;
 use App\Models\Chat;
 use App\Models\Role;
 use App\Models\Team;
-use App\Traits\ResponseTrait;
 use Illuminate\Http\Request;
+use App\Traits\ResponseTrait;
 use App\Models\ProjectRoleUser;
-use Illuminate\Support\Facades\Auth;
+use App\Traits\MemberColorTrait;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Validator;
 
 class ChatController extends Controller
 {
-    use ResponseTrait;
+    use ResponseTrait, MemberColorTrait;
 
     // Get teams that the user can chat in
     public function getChatTeams()
     {
         $user = Auth::user();
-    
+
         // Step 1: Get all projects where the user is a manager
         $managedProjects = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('role_id', Role::ROLE_MANAGER)
             ->pluck('project_id');
-    
+
         // Step 2: Get all teams where the user is a member or leader, including project details
         $teams = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -46,7 +47,7 @@ class ChatController extends Controller
                 'projects.updated_at as project_updated_at'
             )
             ->get();
-    
+
         // Step 3: If the user is a project manager, include all teams in the projects they manage
         if ($managedProjects->isNotEmpty()) {
             // Get all teams from the projects the user manages
@@ -62,27 +63,27 @@ class ChatController extends Controller
                     'projects.updated_at as project_updated_at'
                 )
                 ->get();
-    
+
             // Add the manager role to these teams, and set team_id to null if it's a manager
             $managedTeams = $managedTeams->map(function ($team) {
                 $team->role = 'manager';
                 return $team;
             });
-    
+
             // Merge the managed teams with the teams where the user is a member or leader
             $teams = $teams->merge($managedTeams);
         }
-    
+
         // Step 4: Format the response to include the user's role in each team and the is_manager flag inside the project
         $formattedTeams = $teams->map(function ($team) use ($managedProjects, $user) {
             $isProjectManager = $managedProjects->contains($team->project_id);
-    
+
             if ($isProjectManager) {
                 $role = 'manager';
             } else {
                 $role = $team->role_id == Role::ROLE_LEADER ? 'leader' : ($team->role_id == Role::ROLE_MANAGER ? 'manager' : 'member');
             }
-    
+
             $project = [
                 'id' => $team->project_id,
                 'name' => $team->project_name,
@@ -92,12 +93,12 @@ class ChatController extends Controller
                 'updated_at' => $team->project_updated_at,
                 'is_manager' => $isProjectManager,
             ];
-    
+
             // Fetch the latest message for the team
             $latestMessage = Chat::where('team_id', $team->id)
                 ->orderBy('created_at', 'desc')
                 ->first();
-    
+
             $team->role = $role;
             $team->has_access = true;
             $team->project = $project;
@@ -110,19 +111,19 @@ class ChatController extends Controller
                     'color' => $this->getMemberColor($latestMessage->sender->id), // Add color for the sender
                 ] : null,
             ] : null;
-    
+
             unset($team->project_id, $team->project_name, $team->project_description, $team->project_status, $team->project_created_at, $team->project_updated_at);
-    
+
             return $team;
         });
-    
+
         $formattedTeams = $formattedTeams->unique('id');
-    
+
         // Step 6: Sort teams by the last message sent
         $formattedTeams = $formattedTeams->sortByDesc(function ($team) {
             return $team->last_message ? $team->last_message['timestamp'] : $team->created_at;
         });
-    
+
         return $this->success([
             'teams' => $formattedTeams->values(),
         ], 'Teams retrieved successfully.');
@@ -183,22 +184,21 @@ class ChatController extends Controller
             'media' => $request->media
         ]);
 
+        $color = $this->getMemberColor($chat->sender->id);
+
         // Eager load the sender relationship
         $chat->load('sender');
 
-        // Add color for the sender
-        $chat->sender->color = $this->getMemberColor($chat->sender->id);
-
         // Broadcast the message to the team's channel
         Broadcast::channel('team.' . $request->team_id, function ($user) {
-            return true; 
+            return true;
         });
 
         // Trigger the Pusher event
-        broadcast(new \App\Events\NewChatMessage($chat))->toOthers();
+        broadcast(new \App\Events\NewChatMessage($chat, $color))->toOthers();
 
         // Trigger the Pusher event for the last message update
-        broadcast(new \App\Events\LastMessageUpdated($chat))->toOthers();
+        broadcast(new \App\Events\LastMessageUpdated($chat, $color))->toOthers();
 
         // Format the response to include the sender object and color
         $responseData = [
@@ -214,7 +214,7 @@ class ChatController extends Controller
             'sender' => [
                 'id' => $chat->sender->id,
                 'name' => $chat->sender->name,
-                'color' => $chat->sender->color, // Include the sender's color
+                'color' => $color,
             ],
         ];
 
@@ -284,7 +284,7 @@ class ChatController extends Controller
             '#C71585', '#191970', '#F5FFFA', '#FFE4E1', '#FFE4B5',
             '#FFDEAD', '#000080', '#FDF5E6', '#808000', '#6B8E23',
         ];
-    
+
         // Use a hash function to map user_id to a color
         $index = $userId % count($colors);
         return $colors[$index];

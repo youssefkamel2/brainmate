@@ -15,13 +15,13 @@ class NewChatMessage implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $chat;
+    public $chat, $color;
 
-    public function __construct(Chat $chat)
+    public function __construct(Chat $chat, $color)
     {
         // Eager load the sender relationship
         $this->chat = $chat->load('sender');
-        \Log::info('NewChatMessage event triggered:', $chat->toArray());
+        $this->color = $color;
     }
 
     public function broadcastOn()
@@ -49,7 +49,11 @@ class NewChatMessage implements ShouldBroadcast
             'media' => $this->chat->media,
             'created_at' => $this->chat->created_at,
             'updated_at' => $this->chat->updated_at,
-            'sender' => $this->chat->sender, // Include the sender object
+            'sender' => [
+                'id' => $this->chat->sender->id,
+                'name' => $this->chat->sender->name,
+                'color' => $this->color,
+            ],
         ];
     }
 }
