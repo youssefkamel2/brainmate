@@ -11,26 +11,68 @@ trait MemberColorTrait
     {
         // Predefined list of colors, including WhatsApp-like colors
         $colors = [
-            '#1A1A1A', '#2E2E2E', '#3D3D3D', '#4A4A4A', '#5C5C5C',
-            '#6E6E6E', '#808080', '#929292', '#A4A4A4', '#B6B6B6',
-            '#1F1F1F', '#2F2F2F', '#3F3F3F', '#4F4F4F', '#5F5F5F',
-            '#6F6F6F', '#7F7F7F', '#8F8F8F', '#9F9F9F', '#AFAFAF',
-            '#121212', '#242424', '#363636', '#484848', '#5A5A5A',
-            '#6C6C6C', '#7E7E7E', '#909090', '#A2A2A2', '#B4B4B4',
-            '#0D0D0D', '#1D1D1D', '#2D2D2D', '#3D3D3D', '#4D4D4D',
-            '#5D5D5D', '#6D6D6D', '#7D7D7D', '#8D8D8D', '#9D9D9D',
-            '#101010', '#202020', '#303030', '#404040', '#505050',
-            '#606060', '#707070', '#808080', '#909090', '#A0A0A0',
-            '#0A0A0A', '#1A1A1A', '#2A2A2A', '#3A3A3A', '#4A4A4A',
-            '#5A5A5A', '#6A6A6A', '#7A7A7A', '#8A8A8A', '#9A9A9A',
-            '#141414', '#242424', '#343434', '#444444', '#545454',
-            '#646464', '#747474', '#848484', '#949494', '#A4A4A4',
-            '#0E0E0E', '#1E1E1E', '#2E2E2E', '#3E3E3E', '#4E4E4E',
-            '#5E5E5E', '#6E6E6E', '#7E7E7E', '#8E8E8E', '#9E9E9E',
-            '#161616', '#262626', '#363636', '#464646', '#565656',
-            '#666666', '#767676', '#868686', '#969696', '#A6A6A6',
-            '#0C0C0C', '#1C1C1C', '#2C2C2C', '#3C3C3C', '#4C4C4C',
-            '#5C5C5C', '#6C6C6C', '#7C7C7C', '#8C8C8C', '#9C9C9C',
+            '#1F2C34', // WhatsApp dark background
+            '#2A3F4B', // Dark teal
+            '#36454F', // Dark slate
+            '#3D4E5A', // Dark blue-gray
+            '#455A64', // Dark cyan
+            '#4E6572', // Dark steel blue
+            '#546E7A', // Dark slate blue
+            '#5C6BC0', // Dark indigo
+            '#673AB7', // Dark deep purple
+            '#7E57C2', // Dark purple
+            '#8E24AA', // Dark magenta
+            '#AB47BC', // Dark pink
+            '#D81B60', // Dark crimson
+            '#E91E63', // Dark pink-red
+            '#EC407A', // Dark rose
+            '#F06292', // Dark blush
+            '#F48FB1', // Dark coral
+            '#FF80AB', // Dark salmon
+            '#FF4081', // Dark hot pink
+            '#F50057', // Dark raspberry
+            '#C2185B', // Dark maroon
+            '#AD1457', // Dark burgundy
+            '#880E4F', // Dark wine
+            '#6A1B9A', // Dark plum
+            '#7B1FA2', // Dark violet
+            '#8E24AA', // Dark orchid
+            '#9C27B0', // Dark lavender
+            '#AB47BC', // Dark lilac
+            '#BA68C8', // Dark mauve
+            '#CE93D8', // Dark thistle
+            '#E1BEE7', // Dark lavender blush
+            '#F3E5F5', // Dark pale lavender
+            '#EDE7F6', // Dark light lavender
+            '#D1C4E9', // Dark periwinkle
+            '#B39DDB', // Dark wisteria
+            '#9575CD', // Dark amethyst
+            '#7E57C2', // Dark heliotrope
+            '#673AB7', // Dark royal purple
+            '#5E35B1', // Dark indigo
+            '#512DA8', // Dark navy
+            '#4527A0', // Dark midnight blue
+            '#311B92', // Dark sapphire
+            '#1A237E', // Dark cobalt
+            '#0D47A1', // Dark azure
+            '#1565C0', // Dark cerulean
+            '#1976D2', // Dark sky blue
+            '#1E88E5', // Dark cornflower
+            '#2196F3', // Dark dodger blue
+            '#42A5F5', // Dark steel blue
+            '#64B5F6', // Dark light blue
+            '#90CAF9', // Dark powder blue
+            '#BBDEFB', // Dark pale blue
+            '#E3F2FD', // Dark light cyan
+            '#B2EBF2', // Dark pale cyan
+            '#80DEEA', // Dark aqua
+            '#4DD0E1', // Dark turquoise
+            '#26C6DA', // Dark cyan
+            '#00BCD4', // Dark teal
+            '#00ACC1', // Dark sea green
+            '#0097A7', // Dark emerald
+            '#00838F', // Dark forest green
+            '#006064', // Dark pine green
         ];
 
         // Use a hash function to map user_id to a color
