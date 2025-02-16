@@ -471,6 +471,30 @@ class TaskController extends Controller
             return $this->error('Task not found.', 404);
         }
     
+        // Check if the user is a task member, team leader, or project manager
+        $isTaskMember = DB::table('task_members')
+            ->where('task_id', $taskId)
+            ->where('user_id', $user->id)
+            ->exists();
+    
+        $isTeamLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->exists();
+    
+        $isProjectManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $task->team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id') // Manager has team_id = null
+            ->exists();
+    
+        // If the user is not a task member, team leader, or project manager, return an error
+        if (!$isTaskMember && !$isTeamLeader && !$isProjectManager) {
+            return $this->error('You are not authorized to update the task status.', 403);
+        }
+    
         // Update the task status
         $task->status = $request->status;
         $task->save();
