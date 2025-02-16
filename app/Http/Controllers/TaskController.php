@@ -11,6 +11,7 @@ use App\Models\TaskNote;
 use App\Models\TaskMember;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
+use App\Traits\MemberColorTrait;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -20,7 +21,7 @@ use App\Notifications\TaskAssignedNotification;
 class TaskController extends Controller
 {
 
-    use ResponseTrait;
+    use ResponseTrait, MemberColorTrait;
 
     // Create Task (Team Leader & manager Only)
     public function createTask(Request $request)
@@ -397,17 +398,6 @@ class TaskController extends Controller
         ];
 
         return $this->success(['task' => $formattedTask], 'Task retrieved successfully.');
-    }
-
-    // Helper Function: Get Member Color
-    private function getMemberColor($userId)
-    {
-        // Predefined list of colors
-        $colors = ['#FF6633', '#FFB399', '#FF33FF', '#FFFF99', '#00B3E6', '#E6B333', '#3366E6', '#999966', '#99FF99', '#B34D4D'];
-
-        // Use a hash function to map user_id to a color
-        $index = $userId % count($colors);
-        return $colors[$index];
     }
 
     // ============= task notes ============
