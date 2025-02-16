@@ -28,11 +28,9 @@ class NewChatMessage implements ShouldBroadcast
     /**
      * Get the channels the event should broadcast on.
      */
-    public function broadcastOn(): array
+    public function broadcastOn(): string
     {
-        return [
-            new PresenceChannel('team.' . $this->chat->team_id),
-        ];
+            return 'new-chat-message';
     }
 
     /**

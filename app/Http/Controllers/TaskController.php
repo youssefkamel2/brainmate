@@ -35,7 +35,7 @@ class TaskController extends Controller
             'description' => 'nullable|string',
             'tags' => 'nullable|string',
             'priority' => 'nullable|in:low,medium,high',
-            'deadline' => 'nullable|date',
+            'deadline' => 'nullable|date|after_or_equal:' . now()->format('Y-m-d'),
             'status' => 'nullable|boolean',
             'members' => 'required|array',
             'members.*' => 'exists:users,id',

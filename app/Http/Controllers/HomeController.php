@@ -27,11 +27,6 @@ class HomeController extends Controller
             ->whereIn('status', [1, 2, 5]) // Only include relevant statuses (pending, in_progress, overdue)
             ->get();
     
-        // Check for overdue tasks and update their status
-        foreach ($tasks as $task) {
-            $task->checkAndUpdateOverdueStatus();
-        }
-    
         // Sort tasks by importance
         $sortedTasks = $tasks->sortByDesc(function ($task) {
             return $this->calculateTaskImportanceScore($task);
