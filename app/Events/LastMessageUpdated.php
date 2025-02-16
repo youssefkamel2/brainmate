@@ -30,7 +30,7 @@ class LastMessageUpdated implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new Channel('team.' . $this->chat->team_id),
+            new Channel('last-message-updates'),
         ];
     }
 
