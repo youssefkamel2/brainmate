@@ -11,14 +11,7 @@ trait MemberColorTrait
     {
         // Predefined list of colors, including WhatsApp-like colors
         $colors = [
-            '#1F2C34', // WhatsApp dark background
-            '#2A3F4B', // Dark teal
-            '#36454F', // Dark slate
-            '#3D4E5A', // Dark blue-gray
-            '#455A64', // Dark cyan
-            '#4E6572', // Dark steel blue
-            '#546E7A', // Dark slate blue
-            '#5C6BC0', // Dark indigo
+
             '#673AB7', // Dark deep purple
             '#7E57C2', // Dark purple
             '#8E24AA', // Dark magenta
