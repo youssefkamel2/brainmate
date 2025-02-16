@@ -229,8 +229,6 @@ class ChatController extends Controller
         // Find the message
         $message = Chat::find($messageId);
     
-        // echo $message;die;
-
         // Check if the message exists
         if (!$message) {
             return $this->error('Message not found.', 404);
@@ -240,10 +238,19 @@ class ChatController extends Controller
         if ($message->sender_id !== $user->id) {
             return $this->error('You are not authorized to delete this message.', 403);
         }
-        
+    
+        // Check if the message is older than 10 minutes
+        $messageCreatedAt = $message->created_at;
+        $currentTime = now();
+        $timeDifferenceInMinutes = $currentTime->diffInMinutes($messageCreatedAt);
+    
+        if ($timeDifferenceInMinutes > 10) {
+            return $this->error('You can only delete messages within 10 minutes of sending.', 403);
+        }
+    
         // Broadcast the message deletion event
         broadcast(new \App\Events\MessageDeleted($message))->toOthers();
-
+    
         // Delete the message
         $message->delete();
     
