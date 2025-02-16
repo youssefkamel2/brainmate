@@ -196,7 +196,10 @@ class ChatController extends Controller
             'media' => $chat->media,
             'created_at' => $chat->created_at,
             'updated_at' => $chat->updated_at,
-            'sender' => $chat->sender, // Include the sender object
+            'sender' => [
+                'id' => $chat->sender->id,
+                'name' => $chat->sender->name,
+            ],
         ];
 
         return $this->success($responseData, 'Message sent successfully.', 201);
