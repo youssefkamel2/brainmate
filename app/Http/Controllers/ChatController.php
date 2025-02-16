@@ -221,6 +221,35 @@ class ChatController extends Controller
         return $this->success($responseData, 'Message sent successfully.', 201);
     }
 
+    // Delete a message
+    public function deleteMessage($messageId)
+    {
+        $user = Auth::user();
+    
+        // Find the message
+        $message = Chat::find($messageId);
+    
+        // echo $message;die;
+
+        // Check if the message exists
+        if (!$message) {
+            return $this->error('Message not found.', 404);
+        }
+    
+        // Check if the user is the sender of the message
+        if ($message->sender_id !== $user->id) {
+            return $this->error('You are not authorized to delete this message.', 403);
+        }
+        
+        // Broadcast the message deletion event
+        broadcast(new \App\Events\MessageDeleted($message))->toOthers();
+
+        // Delete the message
+        $message->delete();
+    
+        return $this->success(null, 'Message deleted successfully.');
+    }
+
     /**
      * Check if the user has access to the team.
      */

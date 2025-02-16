@@ -153,6 +153,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/teams', [ChatController::class, 'getChatTeams']);
             Route::get('/messages/{teamId}', [ChatController::class, 'getMessages']);
             Route::post('/send', [ChatController::class, 'sendMessage']);
+            Route::delete('/messages/{messageId}', [ChatController::class, 'deleteMessage']);
         });
     });
     
