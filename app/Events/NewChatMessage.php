@@ -49,10 +49,7 @@ class NewChatMessage implements ShouldBroadcast
             'media' => $this->chat->media,
             'created_at' => $this->chat->created_at,
             'updated_at' => $this->chat->updated_at,
-            'sender' => [
-                'id' => $this->chat->sender->id,
-                'name' => $this->chat->sender->name,
-            ],
+            'sender' => $this->chat->sender, // Include the sender object
         ];
     }
 }

@@ -21,13 +21,13 @@ class ChatController extends Controller
     public function getChatTeams()
     {
         $user = Auth::user();
-    
+
         // Step 1: Get all projects where the user is a manager
         $managedProjects = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('role_id', Role::ROLE_MANAGER)
             ->pluck('project_id');
-    
+
         // Step 2: Get all teams where the user is a member or leader, including project details
         $teams = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -46,7 +46,7 @@ class ChatController extends Controller
                 'projects.updated_at as project_updated_at'
             )
             ->get();
-    
+
         // Step 3: If the user is a project manager, include all teams in the projects they manage
         if ($managedProjects->isNotEmpty()) {
             // Get all teams from the projects the user manages
@@ -62,27 +62,27 @@ class ChatController extends Controller
                     'projects.updated_at as project_updated_at'
                 )
                 ->get();
-    
+
             // Add the manager role to these teams, and set team_id to null if it's a manager
             $managedTeams = $managedTeams->map(function ($team) {
                 $team->role = 'manager';
                 return $team;
             });
-    
+
             // Merge the managed teams with the teams where the user is a member or leader
             $teams = $teams->merge($managedTeams);
         }
-    
+
         // Step 4: Format the response to include the user's role in each team and the is_manager flag inside the project
         $formattedTeams = $teams->map(function ($team) use ($managedProjects, $user) {
             $isProjectManager = $managedProjects->contains($team->project_id);
-    
+
             if ($isProjectManager) {
                 $role = 'manager';
             } else {
                 $role = $team->role_id == Role::ROLE_LEADER ? 'leader' : ($team->role_id == Role::ROLE_MANAGER ? 'manager' : 'member');
             }
-    
+
             $project = [
                 'id' => $team->project_id,
                 'name' => $team->project_name,
@@ -92,36 +92,27 @@ class ChatController extends Controller
                 'updated_at' => $team->project_updated_at,
                 'is_manager' => $isProjectManager,
             ];
-    
-            // Fetch the latest message for the team
-            $latestMessage = Chat::where('team_id', $team->id)
-                ->orderBy('created_at', 'desc')
-                ->first();
-    
+
             $team->role = $role;
             $team->has_access = true;
             $team->project = $project;
-            $team->last_message = $latestMessage ? [
-                'message' => $latestMessage->message,
-                'timestamp' => $latestMessage->created_at,
-                'sender' => $latestMessage->sender ? [
-                    'id' => $latestMessage->sender->id,
-                    'name' => $latestMessage->sender->name,
-                ] : null,
-            ] : null;
-    
+
             unset($team->project_id, $team->project_name, $team->project_description, $team->project_status, $team->project_created_at, $team->project_updated_at);
-    
+
             return $team;
         });
-    
+
         $formattedTeams = $formattedTeams->unique('id');
-    
+
         // Step 6: Sort teams by the last message sent
         $formattedTeams = $formattedTeams->sortByDesc(function ($team) {
-            return $team->last_message ? $team->last_message['timestamp'] : $team->created_at;
+            $latestMessage = Chat::where('team_id', $team->id)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            return $latestMessage ? $latestMessage->created_at : $team->created_at;
         });
-    
+
         return $this->success([
             'teams' => $formattedTeams->values(),
         ], 'Teams retrieved successfully.');
@@ -186,9 +177,6 @@ class ChatController extends Controller
 
     // Trigger the Pusher event
     broadcast(new \App\Events\NewChatMessage($chat))->toOthers();
-    // Trigger the Pusher event for the last message update
-
-    broadcast(new \App\Events\LastMessageUpdated($chat))->toOthers();
 
     // Format the response to include the sender object
     $responseData = [
