@@ -93,9 +93,22 @@ class ChatController extends Controller
                 'is_manager' => $isProjectManager,
             ];
 
+            // Fetch the latest message for the team
+            $latestMessage = Chat::where('team_id', $team->id)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
             $team->role = $role;
             $team->has_access = true;
             $team->project = $project;
+            $team->last_message = $latestMessage ? [
+                'message' => $latestMessage->message,
+                'timestamp' => $latestMessage->created_at,
+                'sender' => $latestMessage->sender ? [
+                    'id' => $latestMessage->sender->id,
+                    'name' => $latestMessage->sender->name,
+                ] : null,
+            ] : null;
 
             unset($team->project_id, $team->project_name, $team->project_description, $team->project_status, $team->project_created_at, $team->project_updated_at);
 
@@ -106,11 +119,7 @@ class ChatController extends Controller
 
         // Step 6: Sort teams by the last message sent
         $formattedTeams = $formattedTeams->sortByDesc(function ($team) {
-            $latestMessage = Chat::where('team_id', $team->id)
-                ->orderBy('created_at', 'desc')
-                ->first();
-
-            return $latestMessage ? $latestMessage->created_at : $team->created_at;
+            return $team->last_message ? $team->last_message['timestamp'] : $team->created_at;
         });
 
         return $this->success([
@@ -137,78 +146,73 @@ class ChatController extends Controller
 
     // Send a message
     public function sendMessage(Request $request)
-{
-    $user = Auth::user();
+    {
+        $user = Auth::user();
 
-    $validator = Validator::make($request->all(), [
-        'message' => 'required|string',
-        'team_id' => 'nullable|exists:teams,id',
-        'receiver_id' => 'nullable|exists:users,id',
-        'type' => 'required|in:text,file,image',
-        'media' => 'nullable|string'
-    ]);
+        $validator = Validator::make($request->all(), [
+            'message' => 'required|string',
+            'team_id' => 'nullable|exists:teams,id',
+            'receiver_id' => 'nullable|exists:users,id',
+            'type' => 'required|in:text,file,image',
+            'media' => 'nullable|string'
+        ]);
 
-    if ($validator->fails()) {
-        return $this->error($validator->errors()->first(), 422);
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+
+        // Check if the user has access to the team
+        if (!$this->userHasAccessToTeam($user, $request->team_id)) {
+            return $this->error('You do not have access to this team.', 403);
+        }
+
+        // Create the chat message
+        $chat = Chat::create([
+            'sender_id' => $user->id,
+            'receiver_id' => $request->receiver_id,
+            'team_id' => $request->team_id,
+            'message' => $request->message,
+            'type' => $request->type,
+            'media' => $request->media
+        ]);
+
+        // Eager load the sender relationship
+        $chat->load('sender');
+
+        // Broadcast the message to the team's channel
+        broadcast(new \App\Events\NewChatMessage($chat))->toOthers();
+
+        // Broadcast the last message update to the team's channel
+        broadcast(new \App\Events\LastMessageUpdated($chat))->toOthers();
+
+        // Format the response to include the sender object
+        $responseData = [
+            'id' => $chat->id,
+            'sender_id' => $chat->sender_id,
+            'receiver_id' => $chat->receiver_id,
+            'team_id' => $chat->team_id,
+            'message' => $chat->message,
+            'type' => $chat->type,
+            'media' => $chat->media,
+            'created_at' => $chat->created_at,
+            'updated_at' => $chat->updated_at,
+            'sender' => $chat->sender, // Include the sender object
+        ];
+
+        return $this->success($responseData, 'Message sent successfully.', 201);
     }
-
-    // Check if the user has access to the team
-    if (!$this->userHasAccessToTeam($user, $request->team_id)) {
-        return $this->error('You do not have access to this team.', 403);
-    }
-
-    // Create the chat message
-    $chat = Chat::create([
-        'sender_id' => $user->id,
-        'receiver_id' => $request->receiver_id,
-        'team_id' => $request->team_id,
-        'message' => $request->message,
-        'type' => $request->type,
-        'media' => $request->media
-    ]);
-
-    // Eager load the sender relationship
-    $chat->load('sender');
-
-    // Broadcast the message to the team's channel
-    Broadcast::channel('team.' . $request->team_id, function ($user) {
-        return true; 
-    });
-
-    // Trigger the Pusher event
-    broadcast(new \App\Events\NewChatMessage($chat))->toOthers();
-
-    // Format the response to include the sender object
-    $responseData = [
-        'id' => $chat->id,
-        'sender_id' => $chat->sender_id,
-        'receiver_id' => $chat->receiver_id,
-        'team_id' => $chat->team_id,
-        'message' => $chat->message,
-        'type' => $chat->type,
-        'media' => $chat->media,
-        'created_at' => $chat->created_at,
-        'updated_at' => $chat->updated_at,
-        'sender' => $chat->sender, // Include the sender object
-    ];
-
-    return $this->success($responseData, 'Message sent successfully.', 201);
-}
 
     /**
      * Check if the user has access to the team.
-     *
-     * @param \App\Models\User $user
-     * @param int $teamId
-     * @return bool
      */
-    private function userHasAccessToTeam($user, $teamId){
+    private function userHasAccessToTeam($user, $teamId)
+    {
         $isMemberOrLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $teamId)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->exists();
-    
+
         $isProjectManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('role_id', Role::ROLE_MANAGER)
@@ -219,7 +223,7 @@ class ChatController extends Controller
                     ->where('teams.id', $teamId);
             })
             ->exists();
-    
+
         return $isMemberOrLeader || $isProjectManager;
     }
 }

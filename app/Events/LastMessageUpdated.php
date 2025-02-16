@@ -11,7 +11,7 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class NewChatMessage implements ShouldBroadcast
+class LastMessageUpdated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -41,18 +41,14 @@ class NewChatMessage implements ShouldBroadcast
     public function broadcastWith(): array
     {
         return [
-            'id' => $this->chat->id,
-            'sender_id' => $this->chat->sender_id,
-            'receiver_id' => $this->chat->receiver_id,
             'team_id' => $this->chat->team_id,
-            'message' => $this->chat->message,
-            'type' => $this->chat->type,
-            'media' => $this->chat->media,
-            'created_at' => $this->chat->created_at,
-            'updated_at' => $this->chat->updated_at,
-            'sender' => [
-                'id' => $this->chat->sender->id,
-                'name' => $this->chat->sender->name,
+            'last_message' => [
+                'message' => $this->chat->message,
+                'timestamp' => $this->chat->created_at,
+                'sender' => [
+                    'id' => $this->chat->sender->id,
+                    'name' => $this->chat->sender->name,
+                ],
             ],
         ];
     }
