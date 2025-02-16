@@ -2,7 +2,6 @@
 
 namespace App\Events;
 
-use App\Models\Chat;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
@@ -10,6 +9,7 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use App\Models\Chat;
 
 class NewChatMessage implements ShouldBroadcast
 {
@@ -17,27 +17,28 @@ class NewChatMessage implements ShouldBroadcast
 
     public $chat;
 
-    /**
-     * Create a new event instance.
-     */
     public function __construct(Chat $chat)
     {
-        $this->chat = $chat;
+        // Eager load the sender relationship
+        $this->chat = $chat->load('sender');
+        \Log::info('NewChatMessage event triggered:', $chat->toArray());
     }
 
-    /**
-     * Get the channels the event should broadcast on.
-     */
-    public function broadcastOn(): string
+    public function broadcastOn()
     {
-            return 'new-chat-message';
+        // Broadcast to a channel named after the team ID
+        return new Channel('team.' . $this->chat->team_id);
     }
 
-    /**
-     * Get the data to broadcast.
-     */
-    public function broadcastWith(): array
+    public function broadcastAs()
     {
+        // Use a custom event name
+        return 'new-chat-message';
+    }
+
+    public function broadcastWith()
+    {
+        // Include the chat message data and sender object in the broadcast
         return [
             'id' => $this->chat->id,
             'sender_id' => $this->chat->sender_id,
@@ -48,10 +49,7 @@ class NewChatMessage implements ShouldBroadcast
             'media' => $this->chat->media,
             'created_at' => $this->chat->created_at,
             'updated_at' => $this->chat->updated_at,
-            'sender' => [
-                'id' => $this->chat->sender->id,
-                'name' => $this->chat->sender->name,
-            ],
+            'sender' => $this->chat->sender, // Include the sender object
         ];
     }
 }
