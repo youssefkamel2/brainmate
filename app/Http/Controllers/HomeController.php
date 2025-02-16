@@ -191,9 +191,8 @@ class HomeController extends Controller
             2 => 'in_progress',
             3 => 'completed',
             4 => 'cancelled',
-            5 => 'overdue',
-            6 => 'on_hold',
-            7 => 'in_review',
+            5 => 'on_hold',
+            6 => 'in_review',
         ];
 
         return $statusMap[$status] ?? 'unknown';

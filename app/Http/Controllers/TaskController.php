@@ -237,7 +237,7 @@ class TaskController extends Controller
         $task->delete();
 
         return $this->success([], 'Task deleted successfully.');
-    }
+    }   
 
     public function getTeamTasks($teamId)
     {
@@ -398,6 +398,7 @@ class TaskController extends Controller
 
         return $this->success(['task' => $formattedTask], 'Task retrieved successfully.');
     }
+
     // Helper Function: Get Member Color
     private function getMemberColor($userId)
     {
