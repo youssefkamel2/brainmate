@@ -64,6 +64,12 @@ class Task extends Model
         return $this->hasMany(TaskNote::class);
     }
 
+    // Define the attachments relationship
+    public function attachments()
+    {
+        return $this->hasMany(Attachment::class);
+    }
+
     /**
      * Get the text representation of the status.
      */
@@ -80,6 +86,6 @@ class Task extends Model
         // A task is overdue if:
         // 1. It has a deadline.
         // 2. The deadline has passed.
-        return $this->deadline && now()->gt($this->deadline) ;
+        return $this->deadline && now()->gt($this->deadline);
     }
 }

@@ -35,10 +35,11 @@ class Attachment extends Model
     protected $table = 'attachments'; // Ensure the correct table name is used.
 
     protected $fillable = [
+        'name',
         'task_id', 
-        'file_type', 
-        'file_path', 
+        'media',
         'created_at', 
+        'updated_at', 
     ];
 
     // If you have relationships with other models, such as 'task', you can define them here.

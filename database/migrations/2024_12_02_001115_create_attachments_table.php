@@ -12,7 +12,6 @@ class CreateAttachmentsTable extends Migration
             $table->id();
             $table->string('name');
             $table->string('media'); // Path to file
-            $table->enum('type', ['image', 'document', 'video'])->default('document');
             $table->foreignId('task_id')->constrained('tasks')->onDelete('cascade'); // Linked task
             $table->timestamps();
         });

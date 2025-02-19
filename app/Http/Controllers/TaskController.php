@@ -8,6 +8,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Models\Project;
 use App\Models\TaskNote;
+use App\Models\Attachment;
 use App\Models\TaskMember;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
@@ -40,11 +41,14 @@ class TaskController extends Controller
             'status' => 'nullable|boolean',
             'members' => 'required|array',
             'members.*' => 'exists:users,id',
+            'attachments' => 'nullable|array',
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:2048', // Max 2MB per file
         ]);
 
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
+        
 
         // Find the team
         $team = Team::find($request->team_id);
@@ -115,7 +119,48 @@ class TaskController extends Controller
             }
         }
 
-        return $this->success(['task' => $task], 'Task created successfully.');
+        // Handle attachments
+        $attachments = [];
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $attachment) {
+                $fileName = time() . '_' . uniqid() . '.' . $attachment->getClientOriginalExtension();
+                $attachment->move(public_path('uploads/tasks'), $fileName);
+                $mediaUrl = 'uploads/tasks/' . $fileName;
+
+                // Save attachment details to the database
+                $attachmentRecord = Attachment::create([
+                    'name' => $fileName,
+                    'media' => $mediaUrl,
+                    'task_id' => $task->id,
+                ]);
+
+                // Add attachment details to the response
+                $attachments[] = [
+                    'id' => $attachmentRecord->id,
+                    'name' => $attachmentRecord->name,
+                    'media' => $attachmentRecord->media,
+                    'created_at' => $attachmentRecord->created_at,
+                    'updated_at' => $attachmentRecord->updated_at,
+                ];
+            }
+        }
+
+        // Format the task response
+        $taskResponse = [
+            'id' => $task->id,
+            'name' => $task->name,
+            'description' => $task->description,
+            'tags' => $task->tags,
+            'priority' => $task->priority,
+            'deadline' => $task->deadline,
+            'status' => $task->status,
+            'team_id' => $task->team_id,
+            'created_at' => $task->created_at,
+            'updated_at' => $task->updated_at,
+            'attachments' => $attachments, // Include attachments in the response
+        ];
+
+        return $this->success(['task' => $taskResponse], 'Task created successfully.');
     }
 
     // Update Task (Team Leader & manager)
@@ -238,19 +283,86 @@ class TaskController extends Controller
         $task->delete();
 
         return $this->success([], 'Task deleted successfully.');
-    }   
+    }
+
+    public function addAttachments(Request $request, $taskId)
+    {
+        // Validate the request
+        $validator = Validator::make($request->all(), [
+            'attachments' => 'required|array',
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:2048', // Max 2MB per file
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+
+        // Find the task
+        $task = Task::find($taskId);
+        if (!$task) {
+            return $this->error('Task not found.', 404);
+        }
+
+        // Handle attachments
+        $attachments = [];
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $attachment) {
+                $fileName = time() . '_' . uniqid() . '.' . $attachment->getClientOriginalExtension();
+                $attachment->move(public_path('uploads/tasks'), $fileName); // Move to public/uploads/tasks
+                $mediaUrl = 'uploads/tasks/' . $fileName; // Relative path for the media URL
+
+                // Save attachment details to the database
+                $attachmentRecord = Attachment::create([
+                    'name' => $fileName,
+                    'media' => $mediaUrl,
+                    'task_id' => $task->id,
+                ]);
+
+                // Add attachment details to the response
+                $attachments[] = [
+                    'id' => $attachmentRecord->id,
+                    'name' => $attachmentRecord->name,
+                    'media' => $attachmentRecord->media,
+                    'created_at' => $attachmentRecord->created_at,
+                    'updated_at' => $attachmentRecord->updated_at,
+                ];
+            }
+        }
+
+        return $this->success(['attachments' => $attachments], 'Attachments added successfully.');
+    }
+
+    // Remove Attachment from a Task
+    public function removeAttachment($attachmentId)
+    {
+        // Find the attachment
+        $attachment = Attachment::find($attachmentId);
+        if (!$attachment) {
+            return $this->error('Attachment not found.', 404);
+        }
+
+        // Delete the file from the server
+        if (file_exists(public_path($attachment->media))) {
+            unlink(public_path($attachment->media));
+        }
+
+        // Delete the attachment record from the database
+        $attachment->delete();
+
+        return $this->success([], 'Attachment removed successfully.');
+    }
 
     public function getTeamTasks($teamId)
     {
         // Get the authenticated user
         $user = Auth::user();
-    
+
         // Check if the team exists
         $team = Team::find($teamId);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-    
+
         // Check if the user is the manager of the project or part of the team (member or leader)
         $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -258,20 +370,20 @@ class TaskController extends Controller
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id') // Manager has team_id = null
             ->exists();
-    
+
         $isPartOfTeam = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $teamId)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->exists();
-    
+
         if (!$isManager && !$isPartOfTeam) {
             return $this->error('You are not authorized to view this team\'s tasks.', 403);
         }
-    
+
         // Get tasks for the team
         $tasks = Task::where('team_id', $teamId)->get();
-    
+
         // Format the response
         $formattedTasks = $tasks->map(function ($task) {
             return [
@@ -284,6 +396,8 @@ class TaskController extends Controller
                 'status' => $task->status,
                 'is_overdue' => $task->is_overdue, // Add the overdue flag
                 'team_id' => $task->team_id,
+                'created_at' => $task->created_at, 
+                'updated_at' => $task->updated_at,
                 'members' => $task->members->map(function ($member) {
                     return [
                         'id' => $member->id,
@@ -293,7 +407,7 @@ class TaskController extends Controller
                 }),
             ];
         });
-    
+
         return $this->success(['tasks' => $formattedTasks], 'Team tasks retrieved successfully.');
     }
 
@@ -301,17 +415,17 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-    
+
         // Get all teams where the user is a member or leader
         $teamIds = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->pluck('team_id')
             ->toArray();
-    
+
         // Get all tasks in these teams
         $tasks = Task::whereIn('team_id', $teamIds)->get();
-    
+
         // Format the response
         $formattedTasks = $tasks->map(function ($task) use ($user) {
             return [
@@ -325,6 +439,8 @@ class TaskController extends Controller
                 'is_overdue' => $task->is_overdue, // Add the overdue flag
                 'team_id' => $task->team_id,
                 'assigned_to_me' => $task->members->contains('id', $user->id),
+                'created_at' => $task->created_at, // Include created_at
+                'updated_at' => $task->updated_at,
                 'members' => $task->members->map(function ($member) {
                     return [
                         'id' => $member->id,
@@ -334,7 +450,7 @@ class TaskController extends Controller
                 }),
             ];
         });
-    
+
         return $this->success(['tasks' => $formattedTasks], 'All tasks retrieved successfully.');
     }
 
@@ -345,21 +461,28 @@ class TaskController extends Controller
         // Get the authenticated user
         $user = Auth::user();
 
-        // Retrieve the task with its members and notes
-        $task = Task::with(['members', 'notes.user'])->find($taskId);
+        // Retrieve the task with its members, notes, and attachments
+        $task = Task::with(['members', 'notes.user', 'attachments'])->find($taskId);
 
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
 
-        // Check if the user is part of the team (member or leader)
+        // Check if the user is part of the team (member or leader) or the project manager
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $task->team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id') // Manager has team_id = null
+            ->exists();
+
         $isPartOfTeam = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->exists();
 
-        if (!$isPartOfTeam) {
+        if (!$isPartOfTeam && !$isManager) {
             return $this->error('You are not part of this team.', 403);
         }
 
@@ -373,6 +496,8 @@ class TaskController extends Controller
             'deadline' => $task->deadline,
             'status' => $task->status,
             'team_id' => $task->team_id,
+            'created_at' => $task->created_at,
+            'updated_at' => $task->updated_at,
             'assigned_to_me' => $task->members->contains('id', $user->id),
             'members' => $task->members->map(function ($member) {
                 return [
@@ -393,6 +518,15 @@ class TaskController extends Controller
                         'email' => $note->user->email,
                         'color' => $this->getMemberColor($note->user->id),
                     ],
+                ];
+            }),
+            'attachments' => $task->attachments->map(function ($attachment) {
+                return [
+                    'id' => $attachment->id,
+                    'name' => $attachment->name,
+                    'media' => $attachment->media,
+                    'created_at' => $attachment->created_at,
+                    'updated_at' => $attachment->updated_at,
                 ];
             }),
         ];
@@ -446,50 +580,50 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-    
+
         // Validate the request
         $validator = Validator::make($request->all(), [
             'status' => 'required|integer|in:' . implode(',', array_keys(Task::$statusTexts)),
         ]);
-    
+
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
-    
+
         // Find the task
         $task = Task::find($taskId);
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
-    
+
         // Check if the user is a task member, team leader, or project manager
         $isTaskMember = DB::table('task_members')
             ->where('task_id', $taskId)
             ->where('user_id', $user->id)
             ->exists();
-    
+
         $isTeamLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_LEADER)
             ->exists();
-    
+
         $isProjectManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('project_id', $task->team->project_id)
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id') // Manager has team_id = null
             ->exists();
-    
+
         // If the user is not a task member, team leader, or project manager, return an error
         if (!$isTaskMember && !$isTeamLeader && !$isProjectManager) {
             return $this->error('You are not authorized to update the task status.', 403);
         }
-    
+
         // Update the task status
         $task->status = $request->status;
         $task->save();
-    
+
         // Return the updated status and its text representation
         return $this->success([
             'status' => $task->status,

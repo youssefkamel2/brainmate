@@ -97,6 +97,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/', [TaskController::class, 'getAllTasks']); // Get all tasks (assigned to user or teams they belong to)
             Route::post('/{taskId}/notes', [TaskController::class, 'addTaskNote']); // Add task note
             Route::put('/{taskId}/status', [TaskController::class, 'updateTaskStatus']); // update state
+            Route::post('/{taskId}/attachments', [TaskController::class, 'addAttachments']); // Add attachments to a task
+            Route::delete('/attachments/{attachmentId}', [TaskController::class, 'removeAttachment']); // Remove an attachment from a task
         });
 
         // [Personal Notes]
@@ -156,5 +158,4 @@ Route::prefix('v1')->group(function () {
             Route::delete('/messages/{messageId}', [ChatController::class, 'deleteMessage']);
         });
     });
-    
 });
