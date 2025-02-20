@@ -519,6 +519,7 @@ class TaskController extends Controller
             'updated_at' => $task->updated_at,
             'assigned_to_me' => $task->members->contains('id', $user->id),
             'role' => $role, // Include the user's role in the response
+            'is_overdue' => $task->is_overdue,
             'members' => $task->members->map(function ($member) {
                 return [
                     'id' => $member->id,
