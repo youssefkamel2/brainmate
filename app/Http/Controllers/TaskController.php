@@ -460,32 +460,51 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-
+    
         // Retrieve the task with its members, notes, and attachments
         $task = Task::with(['members', 'notes.user', 'attachments'])->find($taskId);
-
+    
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
-
-        // Check if the user is part of the team (member or leader) or the project manager
+    
+        // Check if the user is the manager of the project
         $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('project_id', $task->team->project_id)
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id') // Manager has team_id = null
             ->exists();
-
-        $isPartOfTeam = DB::table('project_role_user')
+    
+        // Check if the user is the leader of the team
+        $isLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
-            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->where('role_id', Role::ROLE_LEADER)
             ->exists();
-
-        if (!$isPartOfTeam && !$isManager) {
+    
+        // Check if the user is a member of the team
+        $isMember = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_MEMBER)
+            ->exists();
+    
+        // Determine the user's role
+        $role = 'member'; // Default role
+        if ($isManager) {
+            $role = 'manager';
+        } elseif ($isLeader) {
+            $role = 'leader';
+        } elseif ($isMember) {
+            $role = 'member';
+        }
+    
+        // Check if the user is authorized to view the task
+        if (!$isManager && !$isLeader && !$isMember) {
             return $this->error('You are not part of this team.', 403);
         }
-
+    
         // Format the response
         $formattedTask = [
             'id' => $task->id,
@@ -499,6 +518,7 @@ class TaskController extends Controller
             'created_at' => $task->created_at,
             'updated_at' => $task->updated_at,
             'assigned_to_me' => $task->members->contains('id', $user->id),
+            'role' => $role, // Include the user's role in the response
             'members' => $task->members->map(function ($member) {
                 return [
                     'id' => $member->id,
@@ -530,10 +550,9 @@ class TaskController extends Controller
                 ];
             }),
         ];
-
+    
         return $this->success(['task' => $formattedTask], 'Task retrieved successfully.');
     }
-
     // ============= task notes ============
 
     public function addTaskNote(Request $request, $taskId)
