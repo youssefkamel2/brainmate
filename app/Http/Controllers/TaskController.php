@@ -576,6 +576,13 @@ class TaskController extends Controller
             return $this->error('Task not found.', 404);
         }
 
+        $isProjectManager = DB::table('project_role_user')
+        ->where('user_id', $user->id)
+        ->where('project_id', $task->team->project_id)
+        ->where('role_id', Role::ROLE_MANAGER)
+        ->whereNull('team_id') // Manager has team_id = null
+        ->exists();
+
         // Check if the user is part of the team (member or leader)
         $isPartOfTeam = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -583,7 +590,7 @@ class TaskController extends Controller
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->exists();
 
-        if (!$isPartOfTeam) {
+        if (!$isPartOfTeam && !$isProjectManager) {
             return $this->error('You are not part of this team.', 403);
         }
 
