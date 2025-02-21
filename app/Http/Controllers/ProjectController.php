@@ -21,7 +21,7 @@ class ProjectController extends Controller
 
         // Retrieve all projects associated with the user
         $projectIds = $user->projects()
-            ->distinct('project_id')
+            ->distinct()
             ->pluck('project_id');
 
         // Fetch the full project details for the distinct project IDs
