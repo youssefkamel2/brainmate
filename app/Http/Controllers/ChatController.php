@@ -159,12 +159,11 @@ class ChatController extends Controller
         $user = Auth::user();
 
         $validator = Validator::make($request->all(), [
-            'message' => 'nullable|string',
+            'message' => 'required|string',
             'team_id' => 'nullable|exists:teams,id',
             'receiver_id' => 'nullable|exists:users,id',
             'type' => 'required|in:text,file,image',
-            'attachments' => 'nullable|array',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf|max:2048',
+            'media' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {
@@ -176,106 +175,51 @@ class ChatController extends Controller
             return $this->error('You do not have access to this team.', 403);
         }
 
-        $attachments = $request->file('attachments', []);
-        $responseData = [];
+        // Create the chat message
+        $chat = Chat::create([
+            'sender_id' => $user->id,
+            'receiver_id' => $request->receiver_id,
+            'team_id' => $request->team_id,
+            'message' => $request->message,
+            'type' => $request->type,
+            'media' => $request->media
+        ]);
 
-        // Handle text-only message
-        if (empty($attachments)) {
-            $chat = Chat::create([
-                'sender_id' => $user->id,
-                'receiver_id' => $request->receiver_id,
-                'team_id' => $request->team_id,
-                'message' => $request->message,
-                'type' => $request->type,
-                'media' => null,
-            ]);
+        $color = $this->getMemberColor($chat->sender->id);
 
-            $color = $this->getMemberColor($chat->sender->id);
+        // Eager load the sender relationship
+        $chat->load('sender');
 
-            // Eager load the sender relationship
-            $chat->load('sender');
+        // Broadcast the message to the team's channel
+        Broadcast::channel('team.' . $request->team_id, function ($user) {
+            return true;
+        });
 
-            // Broadcast the message to the team's channel
-            Broadcast::channel('team.' . $request->team_id, function ($user) {
-                return true;
-            });
+        // Trigger the Pusher event
+        broadcast(new \App\Events\NewChatMessage($chat, $color))->toOthers();
 
-            // Trigger the Pusher event
-            broadcast(new \App\Events\NewChatMessage($chat, $color))->toOthers();
+        // Trigger the Pusher event for the last message update
+        broadcast(new \App\Events\LastMessageUpdated($chat, $color))->toOthers();
 
-            // Trigger the Pusher event for the last message update
-            broadcast(new \App\Events\LastMessageUpdated($chat, $color))->toOthers();
+        // Format the response to include the sender object and color
+        $responseData = [
+            'id' => $chat->id,
+            'sender_id' => $chat->sender_id,
+            'receiver_id' => $chat->receiver_id,
+            'team_id' => $chat->team_id,
+            'message' => $chat->message,
+            'type' => $chat->type,
+            'media' => $chat->media,
+            'created_at' => $chat->created_at,
+            'updated_at' => $chat->updated_at,
+            'sender' => [
+                'id' => $chat->sender->id,
+                'name' => $chat->sender->name,
+                'color' => $color,
+            ],
+        ];
 
-            // Format the response to include the sender object and color
-            $responseData[] = [
-                'id' => $chat->id,
-                'sender_id' => $chat->sender_id,
-                'receiver_id' => $chat->receiver_id,
-                'team_id' => $chat->team_id,
-                'message' => $chat->message,
-                'type' => $chat->type,
-                'media' => $chat->media,
-                'created_at' => $chat->created_at,
-                'updated_at' => $chat->updated_at,
-                'sender' => [
-                    'id' => $chat->sender->id,
-                    'name' => $chat->sender->name,
-                    'color' => $color,
-                ],
-            ];
-        } else {
-            // Handle attachments
-            foreach ($attachments as $attachment) {
-                $fileName = time(); // Unique file name
-                $attachment->move(public_path('uploads/chats'), $fileName); // Move to public/uploads/chats
-                $mediaUrl = 'uploads/chats/' . $fileName; // Relative path for the media URL
-
-                $chat = Chat::create([
-                    'sender_id' => $user->id,
-                    'receiver_id' => $request->receiver_id,
-                    'team_id' => $request->team_id,
-                    'message' => $request->message,
-                    'type' => $request->type,
-                    'media' => $mediaUrl,
-                ]);
-
-                $color = $this->getMemberColor($chat->sender->id);
-
-                // Eager load the sender relationship
-                $chat->load('sender');
-
-                // Broadcast the message to the team's channel
-                Broadcast::channel('team.' . $request->team_id, function ($user) {
-                    return true;
-                });
-
-                // Trigger the Pusher event
-                broadcast(new \App\Events\NewChatMessage($chat, $color))->toOthers();
-
-                // Trigger the Pusher event for the last message update
-                broadcast(new \App\Events\LastMessageUpdated($chat, $color))->toOthers();
-
-                // Format the response to include the sender object and color
-                $responseData[] = [
-                    'id' => $chat->id,
-                    'sender_id' => $chat->sender_id,
-                    'receiver_id' => $chat->receiver_id,
-                    'team_id' => $chat->team_id,
-                    'message' => $chat->message,
-                    'type' => $chat->type,
-                    'media' => $mediaUrl,
-                    'created_at' => $chat->created_at,
-                    'updated_at' => $chat->updated_at,
-                    'sender' => [
-                        'id' => $chat->sender->id,
-                        'name' => $chat->sender->name,
-                        'color' => $color,
-                    ],
-                ];
-            }
-        }
-
-        return $this->success($responseData, 'Message(s) sent successfully.', 201);
+        return $this->success($responseData, 'Message sent successfully.', 201);
     }
 
     // Delete a message
