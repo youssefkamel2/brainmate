@@ -42,7 +42,7 @@ class TaskController extends Controller
             'members' => 'required|array',
             'members.*' => 'exists:users,id',
             'attachments' => 'nullable|array',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:8048', // Max 8MB per file
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:8048', // Max MB per file
         ]);
 
         if ($validator->fails()) {
@@ -124,7 +124,7 @@ class TaskController extends Controller
         if ($request->hasFile('attachments')) {
             foreach ($request->file('attachments') as $attachment) {
                 $fileName = time() . '_' . uniqid() . '.' . $attachment->getClientOriginalExtension();
-                $attachment->move(storage_path('app/uploads/tasks'), $fileName);
+                $attachment->move(public_path('uploads/tasks'), $fileName);
                 $mediaUrl = 'uploads/tasks/' . $fileName;
 
                 // Save attachment details to the database
@@ -308,7 +308,7 @@ class TaskController extends Controller
         if ($request->hasFile('attachments')) {
             foreach ($request->file('attachments') as $attachment) {
                 $fileName = time() . '_' . uniqid() . '.' . $attachment->getClientOriginalExtension();
-                $attachment->move(storage_path('app/uploads/tasks'), $fileName);
+                $attachment->move(public_path('uploads/tasks'), $fileName); // Move to public/uploads/tasks
                 $mediaUrl = 'uploads/tasks/' . $fileName; // Relative path for the media URL
 
                 // Save attachment details to the database
@@ -342,8 +342,8 @@ class TaskController extends Controller
         }
 
         // Delete the file from the server
-        if (file_exists(storage_path($attachment->media))) {
-            unlink(storage_path($attachment->media));
+        if (file_exists(public_path($attachment->media))) {
+            unlink(public_path($attachment->media));
         }
 
         // Delete the attachment record from the database

@@ -36,10 +36,6 @@ console_command = 'php /var/www/html/artisan tinker'
   cpus = 1
 
 # Mount the volume for persistent storage
-[mounts]
-  source = "attachments"
-  destination = "/var/www/html/storage/app/uploads"
-
-[mounts]
-  source = "attachments2"
-  destination = "/var/www/html/storage/app/uploads2"
+#[mounts]
+#  source = "attachments"
+#  destination = "/var/www/html/storage/app/uploads"
