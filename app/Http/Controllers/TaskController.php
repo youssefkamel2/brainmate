@@ -42,7 +42,7 @@ class TaskController extends Controller
             'members' => 'required|array',
             'members.*' => 'exists:users,id',
             'attachments' => 'nullable|array',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:2048', // Max 2MB per file
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:8048', // Max 8MB per file
         ]);
 
         if ($validator->fails()) {
@@ -290,7 +290,7 @@ class TaskController extends Controller
         // Validate the request
         $validator = Validator::make($request->all(), [
             'attachments' => 'required|array',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:2048', // Max 2MB per file
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:8048', // Max 8MB per file
         ]);
 
         if ($validator->fails()) {
