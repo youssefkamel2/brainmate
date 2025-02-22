@@ -487,45 +487,45 @@ class TeamController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-
+    
         // Validate the request
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|exists:users,id',
         ]);
-
+    
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
-
+    
         // Find the team
         $team = Team::find($teamId);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-
+    
         // Check if the user is the manager or leader of the team
         $isManager = $user->roles()
             ->where('project_id', $team->project_id)
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id')
             ->exists();
-
+    
         $isLeader = $user->roles()
             ->where('project_id', $team->project_id)
             ->where('role_id', Role::ROLE_LEADER)
             ->where('team_id', $team->id)
             ->exists();
-
+    
         if (!$isManager && !$isLeader) {
             return $this->error('Only the manager or team leader can remove users from the team.', 403);
         }
-
+    
         // Find the user to be removed
         $userToRemove = User::find($request->user_id);
         if (!$userToRemove) {
             return $this->error('User not found.', 404);
         }
-
+    
         // Check the role of the user to be removed
         $userToRemoveRole = DB::table('project_role_user')
             ->where('user_id', $request->user_id)
@@ -535,11 +535,11 @@ class TeamController extends Controller
                     ->orWhereNull('team_id'); // Include manager (team_id = null)
             })
             ->value('role_id');
-
+    
         if (!$userToRemoveRole) {
             return $this->error('User is not associated with this project or team.', 404);
         }
-
+    
         // Manager can delete leader or member
         if ($isManager) {
             if ($userToRemoveRole === Role::ROLE_MANAGER) {
@@ -552,7 +552,19 @@ class TeamController extends Controller
                 return $this->error('Leader cannot delete manager or another leader.', 403);
             }
         }
-
+    
+        // Check if the user to be removed has tasks assigned to them that are not completed
+        $incompleteTasks = DB::table('task_members')
+            ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
+            ->where('task_members.user_id', $request->user_id)
+            ->where('tasks.team_id', $teamId)
+            ->whereIn('tasks.status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
+            ->exists();
+    
+        if ($incompleteTasks) {
+            return $this->error('The user cannot be removed because they have incomplete tasks assigned to them.', 403);
+        }
+    
         // Remove the user from the team
         DB::table('project_role_user')
             ->where('user_id', $request->user_id)
@@ -562,10 +574,15 @@ class TeamController extends Controller
                     ->orWhereNull('team_id'); // Include manager (team_id = null)
             })
             ->delete();
-
+    
+        // Remove the user from all tasks related to this team
+        DB::table('task_members')
+            ->where('user_id', $request->user_id)
+            ->where('team_id', $teamId)
+            ->delete();
+    
         return $this->success([], 'User removed from the team successfully.');
     }
-
     public function changeUserRole(Request $request, $teamId)
     {        // Get the authenticated user
         $user = Auth::user();
@@ -752,7 +769,7 @@ class TeamController extends Controller
             ->exists();
     
         if ($incompleteTasks) {
-            return $this->error('You cannot leave the team because you have incomplete tasks assigned to you.', 403);
+            return $this->error('You cannot leave the team because you have incomplete tasks.', 403);
         }
     
         // Remove the user from the team
