@@ -42,7 +42,7 @@ class TaskController extends Controller
             'members' => 'required|array',
             'members.*' => 'exists:users,id',
             'attachments' => 'nullable|array',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:8048', // Max MB per file
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:8048', // Max 8MB per file
         ]);
 
         if ($validator->fails()) {
