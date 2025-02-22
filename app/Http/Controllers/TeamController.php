@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Role;
+use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
 use App\Models\Project;
@@ -716,13 +717,13 @@ class TeamController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-
+    
         // Find the team
         $team = Team::find($teamId);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-
+    
         // Check if the user is a member or leader of the team
         $userRole = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -732,23 +733,41 @@ class TeamController extends Controller
                     ->orWhereNull('team_id'); // Include manager (team_id = null)
             })
             ->value('role_id');
-
+    
         if (!$userRole) {
             return $this->error('You are not associated with this project or team.', 403);
         }
-
+    
         // Check if the user is the manager
         if ($userRole === Role::ROLE_MANAGER) {
             return $this->error('Manager cannot leave the team without assigning a new manager first.', 403);
         }
-
+    
+        // Check if the user has tasks assigned to them that are not completed
+        $incompleteTasks = DB::table('task_members')
+            ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
+            ->where('task_members.user_id', $user->id)
+            ->where('tasks.team_id', $teamId)
+            ->whereIn('tasks.status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
+            ->exists();
+    
+        if ($incompleteTasks) {
+            return $this->error('You cannot leave the team because you have incomplete tasks assigned to you.', 403);
+        }
+    
         // Remove the user from the team
         DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('project_id', $team->project_id)
             ->where('team_id', $teamId)
             ->delete();
-
+    
+        // Remove the user from all tasks related to this team
+        DB::table('task_members')
+            ->where('user_id', $user->id)
+            ->where('team_id', $teamId)
+            ->delete();
+    
         return $this->success([], 'You have successfully left the team.');
     }
 
