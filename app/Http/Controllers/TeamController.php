@@ -553,16 +553,22 @@ class TeamController extends Controller
             }
         }
     
-        // Check if the user to be removed has tasks assigned to them that are not completed
-        $incompleteTasks = DB::table('task_members')
+        // Check if the user to be removed has incomplete tasks assigned only to them
+        $incompleteTasksAssignedOnlyToUser = DB::table('task_members')
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
-            ->where('task_members.user_id', $request->user_id)
             ->where('tasks.team_id', $teamId)
+            ->where('task_members.user_id', $request->user_id)
             ->whereIn('tasks.status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
+            ->whereNotExists(function ($query) use ($request) {
+                $query->select(DB::raw(1))
+                    ->from('task_members as tm')
+                    ->whereRaw('tm.task_id = tasks.id')
+                    ->where('tm.user_id', '<>', $request->user_id); // Check if other users are assigned to the task
+            })
             ->exists();
     
-        if ($incompleteTasks) {
-            return $this->error('The user cannot be removed because they have incomplete tasks assigned to them.', 403);
+        if ($incompleteTasksAssignedOnlyToUser) {
+            return $this->error('The user cannot be removed because they have incomplete tasks assigned only to them.', 403);
         }
     
         // Remove the user from the team
@@ -760,16 +766,22 @@ class TeamController extends Controller
             return $this->error('Manager cannot leave the team without assigning a new manager first.', 403);
         }
     
-        // Check if the user has tasks assigned to them that are not completed
-        $incompleteTasks = DB::table('task_members')
+        // Check if the user has incomplete tasks assigned only to them
+        $incompleteTasksAssignedOnlyToUser = DB::table('task_members')
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
-            ->where('task_members.user_id', $user->id)
             ->where('tasks.team_id', $teamId)
+            ->where('task_members.user_id', $user->id)
             ->whereIn('tasks.status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('task_members as tm')
+                    ->whereRaw('tm.task_id = tasks.id')
+                    ->where('tm.user_id', '<>', Auth::id()); // Check if other users are assigned to the task
+            })
             ->exists();
     
-        if ($incompleteTasks) {
-            return $this->error('You cannot leave the team because you have incomplete tasks.', 403);
+        if ($incompleteTasksAssignedOnlyToUser) {
+            return $this->error('You cannot leave the team because you have incomplete tasks assigned only to you.', 403);
         }
     
         // Remove the user from the team
