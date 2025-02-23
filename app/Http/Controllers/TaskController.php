@@ -464,9 +464,10 @@ class TaskController extends Controller
         // Retrieve the task with its members, notes, and attachments
         $task = Task::with([
             'members',
-            'notes.user' => function ($query) {
-                $query->orderBy('created_at', 'asc'); // Sort notes by created_at in descending order
+            'notes' => function ($query) {
+                $query->orderBy('created_at', 'desc'); // Sort notes by created_at in descending order
             },
+            'notes.user', // Load the user relationship for each note
             'attachments'
         ])->find($taskId);
 
