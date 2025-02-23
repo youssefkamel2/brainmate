@@ -465,7 +465,7 @@ class TaskController extends Controller
         $task = Task::with([
             'members',
             'notes.user' => function ($query) {
-                $query->orderBy('created_at', 'desc'); // Sort notes by created_at in descending order
+                $query->orderBy('created_at', 'asc'); // Sort notes by created_at in descending order
             },
             'attachments'
         ])->find($taskId);
