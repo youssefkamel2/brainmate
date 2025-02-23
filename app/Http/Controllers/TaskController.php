@@ -462,8 +462,14 @@ class TaskController extends Controller
         $user = Auth::user();
     
         // Retrieve the task with its members, notes, and attachments
-        $task = Task::with(['members', 'notes.user', 'attachments'])->find($taskId);
-    
+        $task = Task::with([
+            'members',
+            'notes.user' => function ($query) {
+                $query->orderBy('created_at', 'desc'); // Sort notes by created_at in descending order
+            },
+            'attachments'
+        ])->find($taskId);
+
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
