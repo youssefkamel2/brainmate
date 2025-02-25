@@ -904,13 +904,13 @@ class TeamController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-
+    
         // Find the team
         $team = Team::find($teamId);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-
+    
         // Check if the user is the manager of the project or the leader of the team
         $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -918,35 +918,50 @@ class TeamController extends Controller
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id') // Manager has team_id = null
             ->exists();
-
+    
         $isLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $teamId)
             ->where('role_id', Role::ROLE_LEADER)
             ->exists();
-
+    
         if (!$isManager && !$isLeader) {
             return $this->error('You are not authorized to view this team\'s members.', 403);
         }
-
+    
         // Get users in the team (members and leader)
-        $users = DB::table('project_role_user')
+        $teamUsers = DB::table('project_role_user')
             ->where('team_id', $teamId)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->join('users', 'project_role_user.user_id', '=', 'users.id')
             ->select('users.id', 'users.name', 'users.email', 'project_role_user.role_id')
             ->get();
-
+    
+        // Get the project manager (if any)
+        $projectManager = DB::table('project_role_user')
+            ->where('project_id', $team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id') // Manager has team_id = null
+            ->join('users', 'project_role_user.user_id', '=', 'users.id')
+            ->select('users.id', 'users.name', 'users.email', 'project_role_user.role_id')
+            ->first();
+    
+        // Convert the project manager to a collection if it exists
+        $projectManagerCollection = $projectManager ? collect([$projectManager]) : collect();
+    
+        // Combine team users and project manager into a single collection
+        $allUsers = $teamUsers->merge($projectManagerCollection);
+    
         // Format the response
-        $formattedUsers = $users->map(function ($user) {
+        $formattedUsers = $allUsers->map(function ($user) {
             return [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'role' => $user->role_id == Role::ROLE_LEADER ? 'leader' : 'member',
+                'role' => $user->role_id == Role::ROLE_MANAGER ? 'manager' : ($user->role_id == Role::ROLE_LEADER ? 'leader' : 'member'),
             ];
         });
-
+    
         return $this->success(['users' => $formattedUsers], 'Team users retrieved successfully.');
     }
 }
