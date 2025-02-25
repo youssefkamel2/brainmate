@@ -471,12 +471,25 @@ class TaskController extends Controller
     
         // Retrieve logs related to the task, notes, and attachments
         $logs = \Spatie\Activitylog\Models\Activity::where(function ($query) use ($task) {
-            $query->where('subject_type', Task::class)
-                ->where('subject_id', $task->id)
-                ->orWhere('subject_type', TaskNote::class)
-                ->whereIn('subject_id', $task->notes->pluck('id'))
-                ->orWhere('subject_type', Attachment::class)
-                ->whereIn('subject_id', $task->attachments->pluck('id'));
+            // Logs for the task itself
+            $query->where('subject_type', 'App\Models\Task')
+                ->where('subject_id', $task->id);
+        
+            // Logs for task notes
+            $query->orWhere(function ($query) use ($task) {
+                $query->where('subject_type', 'App\Models\TaskNote')
+                    ->whereIn('subject_id', $task->notes->pluck('id'));
+            });
+        
+            // Logs for attachments (including deleted ones)
+            $query->orWhere(function ($query) use ($task) {
+                $query->where('subject_type', 'App\Models\Attachment')
+                    ->whereIn('subject_id', function ($subQuery) use ($task) {
+                        $subQuery->select('id')
+                            ->from('attachments')
+                            ->where('task_id', $task->id);
+                    });
+            });
         })
         ->orderBy('created_at', 'desc')
         ->get();
