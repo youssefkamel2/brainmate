@@ -201,4 +201,13 @@ class User extends Authenticatable implements JWTSubject
             ->withPivot('role_id', 'team_id')
             ->withTimestamps();
     }
+
+    public function getRoleInTeam($teamId)
+    {
+        $role = $this->roles()
+            ->where('team_id', $teamId)
+            ->first();
+
+        return $role ? $role->id : null;
+    }
 }

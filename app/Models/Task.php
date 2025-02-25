@@ -86,6 +86,13 @@ class Task extends Model
         // A task is overdue if:
         // 1. It has a deadline.
         // 2. The deadline has passed.
-        return $this->deadline && now()->gt($this->deadline);
+        // 3. The status is pending, in_progress, or in_review.
+        return $this->deadline &&
+            now()->gt($this->deadline) &&
+            in_array($this->status, [
+                self::STATUS_PENDING,
+                self::STATUS_IN_PROGRESS,
+                self::STATUS_IN_REVIEW
+            ]);
     }
 }

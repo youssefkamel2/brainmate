@@ -13,20 +13,19 @@ class DatabaseSeeder extends Seeder
     public function run()
     {
         $this->call([
-            RolesSeeder::class,
-            UsersSeeder::class,
-            ProjectsSeeder::class,
-            TeamsSeeder::class,
+            // RolesSeeder::class,
+            // UsersSeeder::class,
+            // ProjectsSeeder::class,
+            // TeamsSeeder::class,
             // TasksSeeder::class,
-            NotificationsSeeder::class,
-            AuditSeeder::class,
-            AttachmentsSeeder::class,
+            // NotificationsSeeder::class,
+            // AttachmentsSeeder::class,
             // RemindersSeeder::class,
             // TaskMembersSeeder::class,
             // TaskNotesSeeder::class,
-            ChatsSeeder::class,
+            // ChatsSeeder::class,
             WorkspacesSeeder::class,
-            ProjectRoleUserSeeder::class,
+            // ProjectRoleUserSeeder::class,
         ]);
     }
 }
