@@ -508,7 +508,7 @@ class TaskController extends Controller
             return false;
         });
     
-        // Format the logs for display
+        // Format the filtered logs for display
         $formattedLogs = $filteredLogs->map(function ($log) use ($task) {
             $description = $log->description;
             $userName = $log->causer ? $log->causer->name : 'System';
@@ -609,7 +609,7 @@ class TaskController extends Controller
                     'updated_at' => $attachment->updated_at,
                 ];
             }),
-            'logs' => $formattedLogs,
+            'logs' => $formattedLogs->values(), // Reset keys for JSON response
         ];
     
         return $this->success(['task' => $formattedTask], 'Task retrieved successfully.');
