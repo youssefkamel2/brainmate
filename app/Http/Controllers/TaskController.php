@@ -77,6 +77,21 @@ class TaskController extends Controller
             return $this->error('Only the project manager or team leader can create tasks.', 403);
         }
 
+        // Validate that all selected members are part of the team
+        if ($request->has('members')) {
+            $teamMembers = DB::table('project_role_user')
+                ->where('team_id', $request->team_id)
+                ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+                ->pluck('user_id')
+                ->toArray();
+
+            $invalidMembers = array_diff($request->members, $teamMembers);
+            if (!empty($invalidMembers)) {
+                $invalidMemberNames = User::whereIn('id', $invalidMembers)->pluck('name')->toArray();
+                return $this->error('The following users are not part of the team: ' . implode(', ', $invalidMemberNames), 422);
+            }
+        }
+
         // Create the task
         $task = Task::create([
             'name' => $request->name,
@@ -400,7 +415,7 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-
+    
         // Retrieve the task with its members, notes, and attachments
         $task = Task::with([
             'members',
@@ -410,11 +425,11 @@ class TaskController extends Controller
             'notes.user', // Load the user relationship for each note
             'attachments'
         ])->find($taskId);
-
+    
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
-
+    
         // Check if the user is authorized to view the task
         $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -422,30 +437,30 @@ class TaskController extends Controller
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id') // Manager has team_id = null
             ->exists();
-
+    
         $isLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_LEADER)
             ->exists();
-
+    
         $isMember = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_MEMBER)
             ->exists();
-
+    
         if (!$isManager && !$isLeader && !$isMember) {
             return $this->error('You are not part of this team.', 403);
         }
-
+    
         // Log the view event only if the user hasn't viewed the task before
         $hasViewed = \Spatie\Activitylog\Models\Activity::where('subject_type', Task::class)
             ->where('subject_id', $task->id)
             ->where('causer_id', $user->id)
             ->where('event', 'viewed')
             ->exists();
-
+    
         if (!$hasViewed) {
             activity()
                 ->causedBy($user)
@@ -453,45 +468,51 @@ class TaskController extends Controller
                 ->event('viewed')
                 ->log('Task viewed');
         }
-
-        // Retrieve logs related to the task
-        $logs = \Spatie\Activitylog\Models\Activity::where('subject_type', Task::class)
-            ->where('subject_id', $task->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
+    
+        // Retrieve logs related to the task, notes, and attachments
+        $logs = \Spatie\Activitylog\Models\Activity::where(function ($query) use ($task) {
+            $query->where('subject_type', Task::class)
+                ->where('subject_id', $task->id)
+                ->orWhere('subject_type', TaskNote::class)
+                ->whereIn('subject_id', $task->notes->pluck('id'))
+                ->orWhere('subject_type', Attachment::class)
+                ->whereIn('subject_id', $task->attachments->pluck('id'));
+        })
+        ->orderBy('created_at', 'desc')
+        ->get();
+    
         // Filter logs based on the user's role
         $filteredLogs = $logs->filter(function ($log) use ($user, $task) {
             $causerRole = $log->causer ? $log->causer->getRoleInTeam($task->team_id) : null;
-
+    
             // If the log causer is the current user, always include it
             if ($log->causer_id === $user->id) {
                 return true;
             }
-
+    
             // If the current user is a manager, include only their own logs
             if ($user->getRoleInTeam($task->team_id) === Role::ROLE_MANAGER) {
                 return $log->causer_id === $user->id;
             }
-
+    
             // If the current user is a leader, include logs from themselves, members, and other leaders
             if ($user->getRoleInTeam($task->team_id) === Role::ROLE_LEADER) {
                 return in_array($causerRole, [Role::ROLE_MEMBER, Role::ROLE_LEADER]);
             }
-
+    
             // If the current user is a member, include logs from themselves and other members
             if ($user->getRoleInTeam($task->team_id) === Role::ROLE_MEMBER) {
                 return $causerRole === Role::ROLE_MEMBER;
             }
-
+    
             return false;
         });
-
+    
         // Format the logs for display
-        $formattedLogs = $filteredLogs->map(function ($log) use ($task) {
+        $formattedLogs = $logs->map(function ($log) use ($task) {
             $description = $log->description;
             $userName = $log->causer ? $log->causer->name : 'System';
-
+    
             switch ($log->event) {
                 case 'created':
                     if ($log->subject_type === Task::class) {
@@ -504,7 +525,7 @@ class TaskController extends Controller
                         $description = "{$userName} added a note: {$noteDescription}.";
                     }
                     break;
-
+    
                 case 'updated':
                     if ($log->subject_type === Task::class) {
                         $properties = json_decode($log->properties, true);
@@ -517,11 +538,11 @@ class TaskController extends Controller
                         }
                     }
                     break;
-
+    
                 case 'viewed':
                     $description = "{$userName} viewed the task.";
                     break;
-
+    
                 case 'deleted':
                     if ($log->subject_type === Attachment::class) {
                         $attachmentName = $log->subject ? $log->subject->name : 'an attachment';
@@ -529,7 +550,7 @@ class TaskController extends Controller
                     }
                     break;
             }
-
+    
             return [
                 'id' => $log->id,
                 'description' => $description,
@@ -542,7 +563,7 @@ class TaskController extends Controller
                 'created_at' => $log->created_at,
             ];
         });
-
+    
         // Format the response
         $formattedTask = [
             'id' => $task->id,
@@ -590,7 +611,7 @@ class TaskController extends Controller
             }),
             'logs' => $formattedLogs,
         ];
-
+    
         return $this->success(['task' => $formattedTask], 'Task retrieved successfully.');
     }
 
