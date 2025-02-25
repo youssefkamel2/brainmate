@@ -423,7 +423,7 @@ class TaskController extends Controller
                 $query->orderBy('created_at', 'desc'); // Sort notes by created_at in descending order
             },
             'notes.user', // Load the user relationship for each note
-            'attachments' // Load existing attachments
+            'attachments'
         ])->find($taskId);
     
         if (!$task) {
@@ -469,72 +469,60 @@ class TaskController extends Controller
                 ->log('Task viewed');
         }
     
-        // Step 1: Fetch all logs related to the task, notes, and attachments
+        // Retrieve logs related to the task, notes, and attachments
         $logs = \Spatie\Activitylog\Models\Activity::where(function ($query) use ($task) {
-            // Logs for the task itself
             $query->where('subject_type', Task::class)
-                ->where('subject_id', $task->id);
-    
-            // Logs for task notes
-            $query->orWhere(function ($query) use ($task) {
-                $query->where('subject_type', TaskNote::class)
-                    ->whereIn('subject_id', $task->notes->pluck('id'));
-            });
-    
-            // Logs for attachments (including deleted ones)
-            $query->orWhere(function ($query) use ($task) {
-                $query->where('subject_type', Attachment::class)
-                    ->whereIn('subject_id', $task->attachments->pluck('id'));
-            });
+                ->where('subject_id', $task->id)
+                ->orWhere('subject_type', TaskNote::class)
+                ->whereIn('subject_id', $task->notes->pluck('id'))
+                ->orWhere('subject_type', Attachment::class)
+                ->whereIn('subject_id', $task->attachments->pluck('id'));
         })
-            ->orderBy('created_at', 'desc')
-            ->get();
+        ->orderBy('created_at', 'desc')
+        ->get();
     
-        // Step 2: Extract attachment details from the logs
-        $attachmentLogs = $logs->filter(function ($log) {
-            return $log->subject_type === 'App\Models\Attachment';
+        // Filter logs based on the user's role
+        $filteredLogs = $logs->filter(function ($log) use ($user, $task) {
+            $causerRole = $log->causer ? $log->causer->getRoleInTeam($task->team_id) : null;
+    
+            // If the log causer is the current user, always include it
+            if ($log->causer_id === $user->id) {
+                return true;
+            }
+    
+            // If the current user is a manager, include only their own logs
+            if ($user->getRoleInTeam($task->team_id) === Role::ROLE_MANAGER) {
+                return $log->causer_id === $user->id;
+            }
+    
+            // If the current user is a leader, include logs from themselves, members, and other leaders
+            if ($user->getRoleInTeam($task->team_id) === Role::ROLE_LEADER) {
+                return in_array($causerRole, [Role::ROLE_MEMBER, Role::ROLE_LEADER]);
+            }
+    
+            // If the current user is a member, include logs from themselves and other members
+            if ($user->getRoleInTeam($task->team_id) === Role::ROLE_MEMBER) {
+                return $causerRole === Role::ROLE_MEMBER;
+            }
+    
+            return false;
         });
     
-        $formattedAttachmentLogs = $attachmentLogs->map(function ($log) {
-            $properties = json_decode($log->properties, true);
-            $attachmentDetails = $properties['attributes'] ?? [];
-    
-            return [
-                'id' => $log->id,
-                'description' => $log->description,
-                'event' => $log->event,
-                'attachment' => [
-                    'id' => $attachmentDetails['id'] ?? null,
-                    'name' => $attachmentDetails['name'] ?? 'an attachment',
-                    'media' => $attachmentDetails['media'] ?? null,
-                    'created_at' => $attachmentDetails['created_at'] ?? null,
-                    'updated_at' => $attachmentDetails['updated_at'] ?? null,
-                ],
-                'user' => $log->causer ? [
-                    'id' => $log->causer->id,
-                    'name' => $log->causer->name,
-                    'color' => $this->getMemberColor($log->causer->id),
-                ] : null,
-                'created_at' => $log->created_at,
-            ];
-        });
-    
-        // Step 3: Format the logs for display
-        $formattedLogs = $logs->map(function ($log) {
+        // Format the logs for display
+        $formattedLogs = $filteredLogs->map(function ($log) use ($task) {
             $description = $log->description;
             $userName = $log->causer ? $log->causer->name : 'System';
     
             switch ($log->event) {
                 case 'created':
                     if ($log->subject_type === Task::class) {
-                        $description = "{$userName} created the task.";
+                        $description = "created the task.";
                     } elseif ($log->subject_type === Attachment::class) {
-                        $properties = json_decode($log->properties, true);
-                        $attachmentName = $properties['attributes']['name'] ?? 'an attachment';
-                        $description = "{$userName} added an attachment: {$attachmentName}.";
+                        $attachmentName = $log->subject ? $log->subject->name : 'an attachment';
+                        $description = "added an attachment: {$attachmentName}.";
                     } elseif ($log->subject_type === TaskNote::class) {
                         $noteDescription = $log->subject ? $log->subject->description : 'a note';
-                        $description = "{$userName} added a note: {$noteDescription}.";
+                        $description = "added a note: {$noteDescription}.";
                     }
                     break;
     
@@ -544,22 +532,21 @@ class TaskController extends Controller
                         if (isset($properties['old_status']) && isset($properties['new_status'])) {
                             $oldStatus = Task::$statusTexts[$properties['old_status']] ?? 'unknown';
                             $newStatus = Task::$statusTexts[$properties['new_status']] ?? 'unknown';
-                            $description = "{$userName} changed the task status from {$oldStatus} to {$newStatus}.";
+                            $description = "changed the task status from {$oldStatus} to {$newStatus}.";
                         } else {
-                            $description = "{$userName} updated the task.";
+                            $description = "updated the task.";
                         }
                     }
                     break;
     
                 case 'viewed':
-                    $description = "{$userName} viewed the task.";
+                    $description = "viewed the task.";
                     break;
     
                 case 'deleted':
                     if ($log->subject_type === Attachment::class) {
-                        $properties = json_decode($log->properties, true);
-                        $attachmentName = $properties['attributes']['name'] ?? 'an attachment';
-                        $description = "{$userName} removed an attachment: {$attachmentName}.";
+                        $attachmentName = $log->subject ? $log->subject->name : 'an attachment';
+                        $description = "removed an attachment: {$attachmentName}.";
                     }
                     break;
             }
@@ -576,9 +563,6 @@ class TaskController extends Controller
                 'created_at' => $log->created_at,
             ];
         });
-    
-        // Step 4: Combine logs for attachments with other logs
-        $combinedLogs = $formattedLogs->merge($formattedAttachmentLogs)->sortByDesc('created_at');
     
         // Format the response
         $formattedTask = [
@@ -625,7 +609,7 @@ class TaskController extends Controller
                     'updated_at' => $attachment->updated_at,
                 ];
             }),
-            'logs' => $combinedLogs->values(), // Reset keys for JSON response
+            'logs' => $formattedLogs,
         ];
     
         return $this->success(['task' => $formattedTask], 'Task retrieved successfully.');
