@@ -516,13 +516,13 @@ class TaskController extends Controller
             switch ($log->event) {
                 case 'created':
                     if ($log->subject_type === Task::class) {
-                        $description = "{$userName} created the task.";
+                        $description = "created the task.";
                     } elseif ($log->subject_type === Attachment::class) {
                         $attachmentName = $log->subject ? $log->subject->name : 'an attachment';
-                        $description = "{$userName} added an attachment: {$attachmentName}.";
+                        $description = "added an attachment: {$attachmentName}.";
                     } elseif ($log->subject_type === TaskNote::class) {
                         $noteDescription = $log->subject ? $log->subject->description : 'a note';
-                        $description = "{$userName} added a note: {$noteDescription}.";
+                        $description = "added a note: {$noteDescription}.";
                     }
                     break;
     
@@ -532,21 +532,21 @@ class TaskController extends Controller
                         if (isset($properties['old_status']) && isset($properties['new_status'])) {
                             $oldStatus = Task::$statusTexts[$properties['old_status']] ?? 'unknown';
                             $newStatus = Task::$statusTexts[$properties['new_status']] ?? 'unknown';
-                            $description = "{$userName} changed the task status from {$oldStatus} to {$newStatus}.";
+                            $description = "changed the task status from {$oldStatus} to {$newStatus}.";
                         } else {
-                            $description = "{$userName} updated the task.";
+                            $description = "updated the task.";
                         }
                     }
                     break;
     
                 case 'viewed':
-                    $description = "{$userName} viewed the task.";
+                    $description = "viewed the task.";
                     break;
     
                 case 'deleted':
                     if ($log->subject_type === Attachment::class) {
                         $attachmentName = $log->subject ? $log->subject->name : 'an attachment';
-                        $description = "{$userName} removed an attachment: {$attachmentName}.";
+                        $description = "removed an attachment: {$attachmentName}.";
                     }
                     break;
             }
