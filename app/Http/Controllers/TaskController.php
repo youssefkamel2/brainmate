@@ -417,7 +417,7 @@ class TaskController extends Controller
         // Get all teams where the user is a member or leader
         $teamIds = DB::table('project_role_user')
             ->where('user_id', $user->id)
-            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER, Role::ROLE_MANAGER])
             ->pluck('team_id')
             ->toArray();
 
