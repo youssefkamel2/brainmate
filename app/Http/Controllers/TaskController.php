@@ -413,17 +413,33 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-
-        // Get all teams where the user is a member or leader
+    
+        // Step 1: Get all projects where the user is a manager
+        $managedProjects = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->pluck('project_id');
+    
+        // Step 2: Get all teams where the user is a member or leader
         $teamIds = DB::table('project_role_user')
             ->where('user_id', $user->id)
-            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER, Role::ROLE_MANAGER])
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->pluck('team_id')
             ->toArray();
-
+    
+        // Step 3: If the user is a project manager, include all teams in the projects they manage
+        if ($managedProjects->isNotEmpty()) {
+            $managedTeamIds = Team::whereIn('project_id', $managedProjects)
+                ->pluck('id')
+                ->toArray();
+    
+            // Merge the team IDs from managed projects with the user's team IDs
+            $teamIds = array_unique(array_merge($teamIds, $managedTeamIds));
+        }
+    
         // Get all tasks in these teams
         $tasks = Task::whereIn('team_id', $teamIds)->get();
-
+    
         // Format the response
         $formattedTasks = $tasks->map(function ($task) use ($user) {
             return [
@@ -448,7 +464,7 @@ class TaskController extends Controller
                 }),
             ];
         });
-
+    
         return $this->success(['tasks' => $formattedTasks], 'All tasks retrieved successfully.');
     }
 
