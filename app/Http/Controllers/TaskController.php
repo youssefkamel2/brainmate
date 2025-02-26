@@ -79,16 +79,22 @@ class TaskController extends Controller
 
         // Validate that all selected members are part of the team
         if ($request->has('members')) {
+            // Get valid team members (members, leaders, and managers)
             $teamMembers = DB::table('project_role_user')
-                ->where('team_id', $request->team_id)
-                ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+                ->where('project_id', $team->project_id) // Filter by project ID
+                ->where(function ($query) use ($request) {
+                    $query->where('team_id', $request->team_id) // Team members (members and leaders)
+                        ->orWhereNull('team_id'); // Include managers (team_id is null for managers)
+                })
+                ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER, Role::ROLE_MANAGER])
                 ->pluck('user_id')
                 ->toArray();
-
+        
+            // Check for invalid members
             $invalidMembers = array_diff($request->members, $teamMembers);
             if (!empty($invalidMembers)) {
                 $invalidMemberNames = User::whereIn('id', $invalidMembers)->pluck('name')->toArray();
-                return $this->error('The following users are not part of the team: ' . implode(', ', $invalidMemberNames), 422);
+                return $this->error('The following users are not part of the team or project: ' . implode(', ', $invalidMemberNames), 422);
             }
         }
 
