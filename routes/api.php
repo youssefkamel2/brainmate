@@ -13,6 +13,7 @@ use App\Http\Controllers\FolderController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\welcomeController;
 use App\Http\Controllers\FavoriteController;
+use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\ModelTestController;
 use App\Http\Controllers\WorkspaceController;
 use App\Http\Controllers\PersonalNoteController;
@@ -156,6 +157,12 @@ Route::prefix('v1')->group(function () {
             Route::get('/messages/{teamId}', [ChatController::class, 'getMessages']);
             Route::post('/send', [ChatController::class, 'sendMessage']);
             Route::delete('/messages/{messageId}', [ChatController::class, 'deleteMessage']);
+        });
+
+        Route::prefix('materials')->group(function () {
+            Route::get('/{teamId}', [MaterialController::class, 'index']); // Get materials and task attachments
+            Route::post('/{teamId}', [MaterialController::class, 'store']); // Upload material
+            Route::delete('/{attachmentId}', [MaterialController::class, 'destroy']); // Delete material or attachment
         });
     });
 });

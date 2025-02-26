@@ -169,6 +169,24 @@ class TaskController extends Controller
             return $this->error('Task not found.', 404);
         }
 
+        // Check if the user is the manager of the project or the leader of the team
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $task->team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id') // Manager has team_id = null
+            ->exists();
+
+        $isLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->exists();
+
+        if (!$isLeader && !$isManager) {
+            return $this->error('Only team leaders and managers can update tasks.', 403);
+        }
+
         // Log the task before update
         $oldAttributes = $task->getAttributes();
 
