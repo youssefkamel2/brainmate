@@ -15,10 +15,12 @@ use App\Traits\ResponseTrait;
 use App\Traits\MemberColorTrait;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Validator;
-use App\Notifications\TaskAssignedNotification;
-use Spatie\Activitylog\Facades\CauserResolver;
 use Spatie\Activitylog\Facades\LogBatch;
+use Illuminate\Support\Facades\Validator;
+use Spatie\Activitylog\Facades\CauserResolver;
+use App\Notifications\TaskAssignedNotification;
+use App\Notifications\TaskNoteAddedNotification;
+use App\Notifications\TaskStatusUpdatedNotification;
 
 class TaskController extends Controller
 {
@@ -89,7 +91,7 @@ class TaskController extends Controller
                 ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER, Role::ROLE_MANAGER])
                 ->pluck('user_id')
                 ->toArray();
-        
+
             // Check for invalid members
             $invalidMembers = array_diff($request->members, $teamMembers);
             if (!empty($invalidMembers)) {
@@ -413,33 +415,33 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-    
+
         // Step 1: Get all projects where the user is a manager
         $managedProjects = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('role_id', Role::ROLE_MANAGER)
             ->pluck('project_id');
-    
+
         // Step 2: Get all teams where the user is a member or leader
         $teamIds = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->pluck('team_id')
             ->toArray();
-    
+
         // Step 3: If the user is a project manager, include all teams in the projects they manage
         if ($managedProjects->isNotEmpty()) {
             $managedTeamIds = Team::whereIn('project_id', $managedProjects)
                 ->pluck('id')
                 ->toArray();
-    
+
             // Merge the team IDs from managed projects with the user's team IDs
             $teamIds = array_unique(array_merge($teamIds, $managedTeamIds));
         }
-    
+
         // Get all tasks in these teams
         $tasks = Task::whereIn('team_id', $teamIds)->get();
-    
+
         // Format the response
         $formattedTasks = $tasks->map(function ($task) use ($user) {
             return [
@@ -464,7 +466,7 @@ class TaskController extends Controller
                 }),
             ];
         });
-    
+
         return $this->success(['tasks' => $formattedTasks], 'All tasks retrieved successfully.');
     }
 
@@ -729,6 +731,27 @@ class TaskController extends Controller
             ->event('created')
             ->log('Task note added');
 
+        // Fetch the team leader and task members
+        $teamLeader = DB::table('project_role_user')
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->join('users', 'project_role_user.user_id', '=', 'users.id')
+            ->select('users.*')
+            ->first();
+
+        $taskMembers = $task->members;
+
+        // Send email notifications to the team leader and task members
+        if ($teamLeader) {
+            $teamLeader->notify(new TaskNoteAddedNotification($task, $taskNote));
+        }
+
+        foreach ($taskMembers as $member) {
+            if ($member->id !== $user->id) { // Avoid sending notification to the user who added the note
+                $member->notify(new TaskNoteAddedNotification($task, $taskNote));
+            }
+        }
+
         return $this->success(['note' => $taskNote], 'Task note added successfully.');
     }
 
@@ -787,6 +810,27 @@ class TaskController extends Controller
         // Update the task status
         $task->status = $request->status;
         $task->save();
+
+        // Fetch the team leader and task members
+        $teamLeader = DB::table('project_role_user')
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->join('users', 'project_role_user.user_id', '=', 'users.id')
+            ->select('users.*')
+            ->first();
+
+        $taskMembers = $task->members;
+
+        // Send email notifications to the team leader and task members
+        if ($teamLeader) {
+            $teamLeader->notify(new TaskStatusUpdatedNotification($task));
+        }
+
+        foreach ($taskMembers as $member) {
+            if ($member->id !== $user->id) { // Avoid sending notification to the user who updated the status
+                $member->notify(new TaskStatusUpdatedNotification($task));
+            }
+        }
 
         // Return the updated status and its text representation
         return $this->success([
