@@ -78,6 +78,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/teams/{teamId}', [TeamController::class, 'deleteTeam']);
             Route::post('/teams/{teamId}/invite', [TeamController::class, 'inviteUserToTeam']);
             Route::post('/teams/accept', [TeamController::class, 'acceptInvitation']);
+            Route::post('/teams/reject', [TeamController::class, 'rejectInvitation']);
             Route::post('/teams/join', [TeamController::class, 'joinTeam']);
             Route::get('/teams/{teamId}', [TeamController::class, 'getTeamDetails']);
             Route::get('/{projectId}/teams', [TeamController::class, 'listTeamsInProject']);
