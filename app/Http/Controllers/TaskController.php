@@ -124,7 +124,7 @@ class TaskController extends Controller
                         'message' => "You have been assigned a new task: {$task->name}.",
                         'type' => 'info',
                         'read' => false,
-                        'action_url' => route('tasks.show', $task->id),
+                        'action_url' => NULL,
                         'metadata' => [
                             'task_id' => $task->id,
                             'task_name' => $task->name,
@@ -745,7 +745,7 @@ class TaskController extends Controller
                 'message' => "A note has been added to the task: {$task->name}.",
                 'type' => 'info',
                 'read' => false,
-                'action_url' => route('tasks.show', $task->id),
+                'action_url' => NULL,
                 'metadata' => [
                     'task_id' => $task->id,
                     'task_name' => $task->name,
@@ -766,7 +766,7 @@ class TaskController extends Controller
                     'message' => "A note has been added to the task: {$task->name}.",
                     'type' => 'info',
                     'read' => false,
-                    'action_url' => route('tasks.show', $task->id),
+                    'action_url' => NULL,
                     'metadata' => [
                         'task_id' => $task->id,
                         'task_name' => $task->name,
@@ -848,7 +848,7 @@ class TaskController extends Controller
                 'message' => "Task status updated: {$task->name} is now {$task->status_text}.",
                 'type' => 'info',
                 'read' => false,
-                'action_url' => route('tasks.show', $task->id),
+                'action_url' => NULL,
                 'metadata' => [
                     'task_id' => $task->id,
                     'task_name' => $task->name,
@@ -869,7 +869,7 @@ class TaskController extends Controller
                     'message' => "Task status updated: {$task->name} is now {$task->status_text}.",
                     'type' => 'info',
                     'read' => false,
-                    'action_url' => route('tasks.show', $task->id),
+                    'action_url' => NULL,
                     'metadata' => [
                         'task_id' => $task->id,
                         'task_name' => $task->name,
