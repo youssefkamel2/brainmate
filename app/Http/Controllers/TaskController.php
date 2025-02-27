@@ -648,7 +648,6 @@ class TaskController extends Controller
                     'name' => $member->name,
                     'email' => $member->email,
                     'color' => $this->getMemberColor($member->id),
-                    'role' => $member->role
                 ];
             }),
             'notes' => $task->notes->map(function ($note) {
@@ -738,7 +737,7 @@ class TaskController extends Controller
         $taskMembers = $task->members;
 
         if ($teamLeader) {
-            // $teamLeader->notify(new TaskNoteAddedNotification($task, $taskNote));
+            $teamLeader->notify(new TaskNoteAddedNotification($task, $taskNote));
 
             // Send notification to team leader
             $notification = Notification::create([
@@ -759,8 +758,7 @@ class TaskController extends Controller
 
         foreach ($taskMembers as $member) {
             if ($member->id !== $user->id) {
-
-                // $member->notify(new TaskNoteAddedNotification($task, $taskNote));
+                $member->notify(new TaskNoteAddedNotification($task, $taskNote));
 
                 // Send notification to task members
                 $notification = Notification::create([
@@ -842,7 +840,7 @@ class TaskController extends Controller
         $taskMembers = $task->members;
 
         if ($teamLeader) {
-            // $teamLeader->notify(new TaskStatusUpdatedNotification($task));
+            $teamLeader->notify(new TaskStatusUpdatedNotification($task));
 
             // Send notification to team leader
             $notification = Notification::create([
@@ -863,7 +861,7 @@ class TaskController extends Controller
 
         foreach ($taskMembers as $member) {
             if ($member->id !== $user->id) {
-                // $member->notify(new TaskStatusUpdatedNotification($task));
+                $member->notify(new TaskStatusUpdatedNotification($task));
 
                 // Send notification to task members
                 $notification = Notification::create([
@@ -871,7 +869,7 @@ class TaskController extends Controller
                     'message' => "Task status updated: {$task->name} is now {$task->status_text}.",
                     'type' => 'info',
                     'read' => false,
-                    'action_url' => NULL,
+                    'action_url' => route('tasks.show', $task->id),
                     'metadata' => [
                         'task_id' => $task->id,
                         'task_name' => $task->name,
