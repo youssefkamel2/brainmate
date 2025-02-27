@@ -107,10 +107,10 @@ class UserController extends Controller
 
         // Prepare the social field
         $social = [
-            'facebook' => $request->facebook ?? $user->social['facebook'] ?? null,
-            'github' => $request->github ?? $user->social['github'] ?? null,
-            'linkedin' => $request->linkedin ?? $user->social['linkedin'] ?? null,
-            'website' => $request->website ?? $user->social['website'] ?? null,
+            'facebook' => $request->facebook ?? null,
+            'github' => $request->github ?? null,
+            'linkedin' => $request->linkedin ?? null,
+            'website' => $request->website ?? null,
         ];
 
         // Update the user's profile
