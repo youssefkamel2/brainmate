@@ -10,8 +10,10 @@ use App\Models\Project;
 use App\Models\TaskNote;
 use App\Models\Attachment;
 use App\Models\TaskMember;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
+use App\Events\NotificationSent;
 use App\Traits\MemberColorTrait;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -30,13 +32,10 @@ class TaskController extends Controller
     // Create Task (Team Leader & manager Only)
     public function createTask(Request $request)
     {
-        // Start a batch for this operation
         LogBatch::startBatch();
 
-        // Get the authenticated user
         $user = Auth::user();
 
-        // Validate the request
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'team_id' => 'required|exists:teams,id',
@@ -48,25 +47,23 @@ class TaskController extends Controller
             'members' => 'required|array',
             'members.*' => 'exists:users,id',
             'attachments' => 'nullable|array',
-            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:8048', // Max 8MB per file
+            'attachments.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:8048',
         ]);
 
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
 
-        // Find the team
         $team = Team::find($request->team_id);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
 
-        // Check if the user is the manager of the project or the leader of the team
         $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('project_id', $team->project_id)
             ->where('role_id', Role::ROLE_MANAGER)
-            ->whereNull('team_id') // Manager has team_id = null
+            ->whereNull('team_id')
             ->exists();
 
         $isLeader = DB::table('project_role_user')
@@ -79,28 +76,22 @@ class TaskController extends Controller
             return $this->error('Only the project manager or team leader can create tasks.', 403);
         }
 
-        // Validate that all selected members are part of the team
-        if ($request->has('members')) {
-            // Get valid team members (members, leaders, and managers)
-            $teamMembers = DB::table('project_role_user')
-                ->where('project_id', $team->project_id) // Filter by project ID
-                ->where(function ($query) use ($request) {
-                    $query->where('team_id', $request->team_id) // Team members (members and leaders)
-                        ->orWhereNull('team_id'); // Include managers (team_id is null for managers)
-                })
-                ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER, Role::ROLE_MANAGER])
-                ->pluck('user_id')
-                ->toArray();
+        $teamMembers = DB::table('project_role_user')
+            ->where('project_id', $team->project_id)
+            ->where(function ($query) use ($request) {
+                $query->where('team_id', $request->team_id)
+                    ->orWhereNull('team_id');
+            })
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER, Role::ROLE_MANAGER])
+            ->pluck('user_id')
+            ->toArray();
 
-            // Check for invalid members
-            $invalidMembers = array_diff($request->members, $teamMembers);
-            if (!empty($invalidMembers)) {
-                $invalidMemberNames = User::whereIn('id', $invalidMembers)->pluck('name')->toArray();
-                return $this->error('The following users are not part of the team or project: ' . implode(', ', $invalidMemberNames), 422);
-            }
+        $invalidMembers = array_diff($request->members, $teamMembers);
+        if (!empty($invalidMembers)) {
+            $invalidMemberNames = User::whereIn('id', $invalidMembers)->pluck('name')->toArray();
+            return $this->error('The following users are not part of the team or project: ' . implode(', ', $invalidMemberNames), 422);
         }
 
-        // Create the task
         $task = Task::create([
             'name' => $request->name,
             'team_id' => $request->team_id,
@@ -111,7 +102,6 @@ class TaskController extends Controller
             'status' => $request->status ?? true,
         ]);
 
-        // Assign members to the task
         if ($request->has('members')) {
             foreach ($request->members as $memberId) {
                 DB::table('task_members')->insert([
@@ -125,26 +115,40 @@ class TaskController extends Controller
 
                 $member = User::find($memberId);
                 if ($member) {
+                    // Send email notification
                     $member->notify(new TaskAssignedNotification($task));
+
+                    // Send read-only notification
+                    $notification = Notification::create([
+                        'user_id' => $member->id,
+                        'message' => "You have been assigned a new task: {$task->name}.",
+                        'type' => 'info',
+                        'read' => false,
+                        'action_url' => route('tasks.show', $task->id),
+                        'metadata' => [
+                            'task_id' => $task->id,
+                            'task_name' => $task->name,
+                        ],
+                    ]);
+
+                    // Broadcast the notification
+                    event(new NotificationSent($notification));
                 }
             }
         }
 
-        // Handle attachments
         if ($request->hasFile('attachments')) {
             foreach ($request->file('attachments') as $attachment) {
                 $fileName = time() . '_' . uniqid() . '.' . $attachment->getClientOriginalExtension();
                 $attachment->move(public_path('uploads/tasks'), $fileName);
                 $mediaUrl = 'uploads/tasks/' . $fileName;
 
-                // Save attachment details to the database
                 $attachmentRecord = Attachment::create([
                     'name' => $fileName,
                     'media' => $mediaUrl,
                     'task_id' => $task->id,
                 ]);
 
-                // Log the attachment creation
                 activity()
                     ->causedBy($user)
                     ->performedOn($attachmentRecord)
@@ -154,7 +158,6 @@ class TaskController extends Controller
             }
         }
 
-        // Log the task creation
         activity()
             ->causedBy($user)
             ->performedOn($task)
@@ -162,7 +165,6 @@ class TaskController extends Controller
             ->event('created')
             ->log('Task created');
 
-        // End the batch
         LogBatch::endBatch();
 
         return $this->success(['task' => $task], 'Task created successfully.');
@@ -680,10 +682,8 @@ class TaskController extends Controller
 
     public function addTaskNote(Request $request, $taskId)
     {
-        // Get the authenticated user
         $user = Auth::user();
 
-        // Validate the request
         $validator = Validator::make($request->all(), [
             'description' => 'required|string',
         ]);
@@ -692,7 +692,6 @@ class TaskController extends Controller
             return $this->error($validator->errors()->first(), 422);
         }
 
-        // Find the task
         $task = Task::find($taskId);
         if (!$task) {
             return $this->error('Task not found.', 404);
@@ -702,10 +701,9 @@ class TaskController extends Controller
             ->where('user_id', $user->id)
             ->where('project_id', $task->team->project_id)
             ->where('role_id', Role::ROLE_MANAGER)
-            ->whereNull('team_id') // Manager has team_id = null
+            ->whereNull('team_id')
             ->exists();
 
-        // Check if the user is part of the team (member or leader)
         $isPartOfTeam = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
@@ -716,14 +714,12 @@ class TaskController extends Controller
             return $this->error('You are not part of this team.', 403);
         }
 
-        // Create the task note
         $taskNote = TaskNote::create([
             'task_id' => $taskId,
             'user_id' => $user->id,
             'description' => $request->description,
         ]);
 
-        // Log the task note creation
         activity()
             ->causedBy($user)
             ->performedOn($taskNote)
@@ -731,7 +727,6 @@ class TaskController extends Controller
             ->event('created')
             ->log('Task note added');
 
-        // Fetch the team leader and task members
         $teamLeader = DB::table('project_role_user')
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_LEADER)
@@ -741,14 +736,45 @@ class TaskController extends Controller
 
         $taskMembers = $task->members;
 
-        // Send email notifications to the team leader and task members
         if ($teamLeader) {
             $teamLeader->notify(new TaskNoteAddedNotification($task, $taskNote));
+
+            // Send notification to team leader
+            $notification = Notification::create([
+                'user_id' => $teamLeader->id,
+                'message' => "A note has been added to the task: {$task->name}.",
+                'type' => 'info',
+                'read' => false,
+                'action_url' => route('tasks.show', $task->id),
+                'metadata' => [
+                    'task_id' => $task->id,
+                    'task_name' => $task->name,
+                    'note_description' => $taskNote->description,
+                ],
+            ]);
+
+            event(new NotificationSent($notification));
         }
 
         foreach ($taskMembers as $member) {
-            if ($member->id !== $user->id) { // Avoid sending notification to the user who added the note
+            if ($member->id !== $user->id) {
                 $member->notify(new TaskNoteAddedNotification($task, $taskNote));
+
+                // Send notification to task members
+                $notification = Notification::create([
+                    'user_id' => $member->id,
+                    'message' => "A note has been added to the task: {$task->name}.",
+                    'type' => 'info',
+                    'read' => false,
+                    'action_url' => route('tasks.show', $task->id),
+                    'metadata' => [
+                        'task_id' => $task->id,
+                        'task_name' => $task->name,
+                        'note_description' => $taskNote->description,
+                    ],
+                ]);
+
+                event(new NotificationSent($notification));
             }
         }
 
@@ -757,10 +783,8 @@ class TaskController extends Controller
 
     public function updateTaskStatus(Request $request, $taskId)
     {
-        // Get the authenticated user
         $user = Auth::user();
 
-        // Validate the request
         $validator = Validator::make($request->all(), [
             'status' => 'required|integer|in:' . implode(',', array_keys(Task::$statusTexts)),
         ]);
@@ -769,13 +793,11 @@ class TaskController extends Controller
             return $this->error($validator->errors()->first(), 422);
         }
 
-        // Find the task
         $task = Task::find($taskId);
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
 
-        // Check if the user is a task member, team leader, or project manager
         $isTaskMember = DB::table('task_members')
             ->where('task_id', $taskId)
             ->where('user_id', $user->id)
@@ -791,15 +813,13 @@ class TaskController extends Controller
             ->where('user_id', $user->id)
             ->where('project_id', $task->team->project_id)
             ->where('role_id', Role::ROLE_MANAGER)
-            ->whereNull('team_id') // Manager has team_id = null
+            ->whereNull('team_id')
             ->exists();
 
-        // If the user is not a task member, team leader, or project manager, return an error
         if (!$isTaskMember && !$isTeamLeader && !$isProjectManager) {
             return $this->error('You are not authorized to update the task status.', 403);
         }
 
-        // Log the task status update
         activity()
             ->causedBy($user)
             ->performedOn($task)
@@ -807,11 +827,9 @@ class TaskController extends Controller
             ->event('updated')
             ->log('Task status updated');
 
-        // Update the task status
         $task->status = $request->status;
         $task->save();
 
-        // Fetch the team leader and task members
         $teamLeader = DB::table('project_role_user')
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_LEADER)
@@ -821,18 +839,48 @@ class TaskController extends Controller
 
         $taskMembers = $task->members;
 
-        // Send email notifications to the team leader and task members
         if ($teamLeader) {
             $teamLeader->notify(new TaskStatusUpdatedNotification($task));
+
+            // Send notification to team leader
+            $notification = Notification::create([
+                'user_id' => $teamLeader->id,
+                'message' => "Task status updated: {$task->name} is now {$task->status_text}.",
+                'type' => 'info',
+                'read' => false,
+                'action_url' => route('tasks.show', $task->id),
+                'metadata' => [
+                    'task_id' => $task->id,
+                    'task_name' => $task->name,
+                    'new_status' => $task->status_text,
+                ],
+            ]);
+
+            event(new NotificationSent($notification));
         }
 
         foreach ($taskMembers as $member) {
-            if ($member->id !== $user->id) { // Avoid sending notification to the user who updated the status
+            if ($member->id !== $user->id) {
                 $member->notify(new TaskStatusUpdatedNotification($task));
+
+                // Send notification to task members
+                $notification = Notification::create([
+                    'user_id' => $member->id,
+                    'message' => "Task status updated: {$task->name} is now {$task->status_text}.",
+                    'type' => 'info',
+                    'read' => false,
+                    'action_url' => route('tasks.show', $task->id),
+                    'metadata' => [
+                        'task_id' => $task->id,
+                        'task_name' => $task->name,
+                        'new_status' => $task->status_text,
+                    ],
+                ]);
+
+                event(new NotificationSent($notification));
             }
         }
 
-        // Return the updated status and its text representation
         return $this->success([
             'status' => $task->status,
             'status_text' => $task->status_text,

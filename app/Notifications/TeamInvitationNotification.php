@@ -32,9 +32,9 @@ class TeamInvitationNotification extends Notification implements ShouldQueue
     public function toMail($notifiable)
     {
         return (new MailMessage)
-            ->subject('You have been invited to a team!')
+            ->subject('You have been invited to join a team!')
             ->line("You have been invited to join the team '{$this->team->name}' in the project '{$this->project->name}' as a {$this->role}.")
-            ->action('Accept Invitation', url("https://brainmate.vercel.app/team-invitation-confirm?token={$this->token}"))
+            ->action('Sign Up to Accept Invitation', url("https://brainmate.vercel.app/signup?token={$this->token}"))
             ->line('If you did not expect this invitation, no further action is required.');
     }
 }

@@ -12,8 +12,10 @@ class CreateNotificationsTable extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade'); // User receiving the notification
             $table->text('message'); // Notification content
-            // $table->string('type')->default('info'); // Type of notification (info, success, warning, error)
+            $table->string('type')->default('info'); // Type of notification (e.g., info, success, warning, error)
             $table->boolean('read')->default(false); // Read/unread status
+            $table->string('action_url')->nullable(); // URL for actionable notifications
+            $table->json('metadata')->nullable(); // Additional data for the notification
             $table->timestamps();
         });
     }

@@ -16,6 +16,7 @@ use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\MaterialController;
 use App\Http\Controllers\ModelTestController;
 use App\Http\Controllers\WorkspaceController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PersonalNoteController;
 
 // API Version Prefix for Versioning
@@ -163,6 +164,12 @@ Route::prefix('v1')->group(function () {
             Route::get('/{teamId}', [MaterialController::class, 'index']); // Get materials and task attachments
             Route::post('/{teamId}', [MaterialController::class, 'store']); // Upload material
             Route::delete('/{attachmentId}', [MaterialController::class, 'destroy']); // Delete material or attachment
+        });
+
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [NotificationController::class, 'index']); // Get all notifications
+            Route::post('/{notificationId}/read', [NotificationController::class, 'markAsRead']); // Mark as read
+            Route::delete('/{notificationId}', [NotificationController::class, 'destroy']); // Delete notification
         });
     });
 });

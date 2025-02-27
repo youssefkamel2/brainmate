@@ -2,21 +2,28 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Role;
+use App\Models\Team;
 use App\Models\User;
+use App\Models\Project;
 use Illuminate\Support\Str;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
+use App\Events\NotificationSent;
 use App\Models\PasswordResetCode;
+use Illuminate\Support\Facades\DB;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Validator;
 use App\Notifications\ResetCodeNotification;
 use App\Notifications\ResetPasswordNotification;
-
+use App\Notifications\TeamInvitationNotification;
 
 class AuthController extends Controller
 {
@@ -24,7 +31,7 @@ class AuthController extends Controller
 
     // Register method
     public function register(Request $request)
-    {    
+    {
         // Validate the request
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
@@ -38,24 +45,24 @@ class AuthController extends Controller
             'level' => 'nullable|string|max:255',
             'skills' => 'nullable|array',
             'skills.*' => 'string|max:255',
-            'facebook' => 'nullable|string|max:255', // New: Facebook link
-            'instagram' => 'nullable|string|max:255', // New: Instagram link
-            'linkedin' => 'nullable|string|max:255', // New: LinkedIn link
-            'website' => 'nullable|string|max:255', // New: Website link
+            'facebook' => 'nullable|string|max:255',
+            'instagram' => 'nullable|string|max:255',
+            'linkedin' => 'nullable|string|max:255',
+            'website' => 'nullable|string|max:255',
             'experience_years' => 'nullable|integer|min:0',
+            'invitation_token' => 'nullable|string', // Add invitation token
         ]);
-    
-        // Return validation errors if they exist
+
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
-    
+
         // Normalize the skills field
         $skills = $request->skills;
         if (is_string($skills)) {
             $skills = explode(',', $skills);
         }
-    
+
         // Prepare the social field
         $social = [
             'facebook' => $request->facebook ?? null,
@@ -63,8 +70,7 @@ class AuthController extends Controller
             'linkedin' => $request->linkedin ?? null,
             'website' => $request->website ?? null,
         ];
-    
-    
+
         // Create a new user
         $user = User::create([
             'name' => $request->name,
@@ -77,18 +83,65 @@ class AuthController extends Controller
             'position' => $request->position,
             'level' => $request->level,
             'skills' => $skills ? implode(',', $skills) : null,
-            'social' => $social, // The mutator will handle the conversion
+            'social' => $social,
             'experience_years' => $request->experience_years,
         ]);
-    
+
+        // Handle invitation token (if provided)
+        if ($request->invitation_token) {
+            $this->handleInvitationToken($user, $request->invitation_token);
+        }
+
         // Generate a JWT token for the user
         $token = JWTAuth::fromUser($user);
-    
+
         // Return success response with user data and token
         return $this->success([
             'user' => $user,
             'token' => $token,
         ], 'User registered successfully', 201);
+    }
+
+    // Handle invitation token during signup
+    protected function handleInvitationToken(User $user, string $token)
+    {
+        // Find the invitation by token
+        $invitation = DB::table('invitations')
+            ->where('token', $token)
+            ->first();
+
+        if (!$invitation) {
+            return; // Invalid or expired token
+        }
+
+        // Associate the invitation with the new user
+        DB::table('invitations')
+            ->where('id', $invitation->id)
+            ->update(['invited_user_id' => $user->id]);
+
+        // Create a system notification for the new user
+        $team = Team::find($invitation->team_id);
+        $project = Project::find($invitation->project_id);
+        $role = Role::find($invitation->role_id)->name;
+
+        $notification = Notification::create([
+            'user_id' => $user->id,
+            'message' => "You have been invited to join the team '{$team->name}' in the project '{$project->name}' as a {$role}.",
+            'type' => 'info',
+            'read' => false,
+            'action_url' => url("https://brainmate.vercel.app/team-invitation-confirm?token={$invitation->token}"),
+            'metadata' => [
+                'team_id' => $team->id,
+                'team_name' => $team->name,
+                'project_id' => $project->id,
+                'project_name' => $project->name,
+                'role' => $role,
+                'token' => $invitation->token,
+            ],
+        ]);
+
+        // Broadcast the notification
+        event(new NotificationSent($notification));
     }
 
     // Login method
