@@ -8,7 +8,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Models\Project;
 use Illuminate\Support\Str;
-use App\Models\Notification;
+use App\Models\Notification as AppNotification;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
 use App\Events\NotificationSent;
@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Notifications\TeamInvitationNotification;
+use Illuminate\Support\Facades\Notification; 
+
 
 class TeamController extends Controller
 {
@@ -206,10 +208,9 @@ class TeamController extends Controller
         $role = Role::find($request->role_id)->name;
         
         if ($invitedUser) {
-
     
             // Create a system notification for the invited user
-            $notification = Notification::create([
+            $notification = AppNotification::create([
                 'user_id' => $invitedUser->id,
                 'message' => "You have been invited to join the team '{$team->name}' in the project '{$project->name}' as a {$role}.",
                 'type' => 'info',
@@ -227,17 +228,12 @@ class TeamController extends Controller
     
             // Broadcast the notification
             event(new NotificationSent($notification));
-        } else {
-
-            // If the user does not exist, send an email with a signup link
-            $invitation = DB::table('invitations')
-                ->where('token', $token)
-                ->first();
     
-            if ($invitation) {
-                // Send email notification
-                $invitedUser->notify(new TeamInvitationNotification($team, $project, $role, $token));
-            }
+        } else {
+    
+            // If the user does not exist, send an email notification
+            Notification::route('mail', $request->email)
+                ->notify(new TeamInvitationNotification($team, $project, $role, $token));
         }
     
         return $this->success([], 'Invitation sent successfully.');
@@ -292,7 +288,7 @@ class TeamController extends Controller
             ->first();
 
         if ($leader) {
-            $notification = Notification::create([
+            $notification = AppNotification::create([
                 'user_id' => $leader->id,
                 'message' => "User with ID {$invitation->invited_user_id} has accepted the invitation to join the team.",
                 'type' => 'info',
@@ -344,7 +340,7 @@ class TeamController extends Controller
             ->first();
 
         if ($leader) {
-            $notification = Notification::create([
+            $notification = AppNotification::create([
                 'user_id' => $leader->id,
                 'message' => "User with ID {$invitation->invited_user_id} has rejected the invitation to join the team.",
                 'type' => 'info',

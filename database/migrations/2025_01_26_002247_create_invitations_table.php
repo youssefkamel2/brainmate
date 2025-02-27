@@ -17,6 +17,7 @@ class CreateInvitationsTable extends Migration
             $table->foreignId('role_id')->constrained('roles')->onDelete('cascade');
             $table->string('token')->unique(); // Unique token for the invitation
             $table->timestamp('accepted_at')->nullable(); // Timestamp when the invitation is accepted
+            $table->timestamp('rejected_at')->nullable(); // Timestamp when the invitation is accepted
             $table->timestamps();
         });
     }
