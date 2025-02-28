@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Support\Facades\DB;
+use Tymon\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
-use Tymon\JWTAuth\Contracts\JWTSubject;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class User extends Authenticatable implements JWTSubject
@@ -202,12 +203,34 @@ class User extends Authenticatable implements JWTSubject
             ->withTimestamps();
     }
 
-    public function getRoleInTeam($teamId)
+    public function getRoleInTeam($projectId)
     {
-        $role = $this->roles()
-            ->where('team_id', $teamId)
+        // Get the role for the user in the specified team
+        $role = DB::table('project_role_user')
+            ->where('user_id', $this->id)
+            ->where('project_id', $projectId)
             ->first();
-
-        return $role ? $role->id : null;
+    
+        if ($role) {
+            $isManager = DB::table('project_role_user')
+                ->where('user_id', $this->id)
+                ->where('role_id', Role::ROLE_MANAGER)
+                ->whereNull('team_id')
+                ->exists();
+    
+            if ($isManager) {
+                return 'manager';
+            }
+    
+            if ($role->role_id == Role::ROLE_LEADER) {
+                return 'leader';
+            }
+    
+            if ($role->role_id == Role::ROLE_MEMBER) {
+                return 'member';
+            }
+        }
+    
+        return null; // No role found
     }
 }
