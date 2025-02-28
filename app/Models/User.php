@@ -205,32 +205,43 @@ class User extends Authenticatable implements JWTSubject
 
     public function getRoleInTeam($projectId)
     {
-        // Get the role for the user in the specified team
-        $role = DB::table('project_role_user')
+        // Check if the user is a manager for the project
+        $isManager = DB::table('project_role_user')
             ->where('user_id', $this->id)
             ->where('project_id', $projectId)
-            ->first();
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id') // Manager has team_id = null
+            ->exists();
     
-        if ($role) {
-            $isManager = DB::table('project_role_user')
-                ->where('user_id', $this->id)
-                ->where('role_id', Role::ROLE_MANAGER)
-                ->whereNull('team_id')
-                ->exists();
-    
-            if ($isManager) {
-                return 'manager';
-            }
-    
-            if ($role->role_id == Role::ROLE_LEADER) {
-                return 'leader';
-            }
-    
-            if ($role->role_id == Role::ROLE_MEMBER) {
-                return 'member';
-            }
+        if ($isManager) {
+            return 'manager';
         }
     
-        return null; // No role found
+        // Check if the user is a leader for any team in the project
+        $isLeader = DB::table('project_role_user')
+            ->where('user_id', $this->id)
+            ->where('project_id', $projectId)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->whereNotNull('team_id') // Leader must have a team_id
+            ->exists();
+    
+        if ($isLeader) {
+            return 'leader';
+        }
+    
+        // Check if the user is a member for any team in the project
+        $isMember = DB::table('project_role_user')
+            ->where('user_id', $this->id)
+            ->where('project_id', $projectId)
+            ->where('role_id', Role::ROLE_MEMBER)
+            ->whereNotNull('team_id') // Member must have a team_id
+            ->exists();
+    
+        if ($isMember) {
+            return 'member';
+        }
+    
+        // If no role is found, return null
+        return null;
     }
 }
