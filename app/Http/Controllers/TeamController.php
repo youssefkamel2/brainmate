@@ -226,7 +226,7 @@ class TeamController extends Controller
             $notification = AppNotification::create([
                 'user_id' => $invitedUser->id,
                 'message' => "You have been invited to join the team '{$team->name}' in the project '{$project->name}' as a {$role}.",
-                'type' => 'info',
+                'type' => 'invitation',
                 'read' => false,
                 'action_url' => url("https://brainmate.vercel.app/team-invitation-confirm?token={$token}"),
                 'metadata' => [
@@ -235,7 +235,7 @@ class TeamController extends Controller
                     'project_id' => $project->id,
                     'project_name' => $project->name,
                     'role' => $role,
-                    'token' => $token, // Include the token for accept/reject actions
+                    'token' => $token,
                 ],
             ]);
 
