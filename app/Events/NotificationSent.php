@@ -30,7 +30,7 @@ class NotificationSent implements ShouldBroadcast
 
     public function broadcastAs()
     {
-        return 'notification.sent';
+        return 'new-notification';
     }
 
     public function broadcastWith()
