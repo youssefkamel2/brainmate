@@ -193,6 +193,19 @@ class TeamController extends Controller
             }
         }
 
+        // Check if there's already a pending invitation for this email and team
+        $existingInvitation = DB::table('invitations')
+            ->where('project_id', $team->project_id)
+            ->where('team_id', $teamId)
+            ->where('invited_user_id', $invitedUser->id)
+            ->whereNull('accepted_at') // Not accepted
+            ->whereNull('rejected_at') // Not rejected
+            ->first();
+
+        if ($existingInvitation) {
+            return $this->error('An invitation is already pending for this user.', 422);
+        }
+
         // If the role is leader, check if there's already a leader
         if ($request->role_id == Role::ROLE_LEADER) {
             DB::table('project_role_user')
@@ -262,6 +275,9 @@ class TeamController extends Controller
             return $this->error($validator->errors()->first(), 422);
         }
 
+        // Get the authenticated user
+        $user = Auth::user();
+
         // Find the invitation by token
         $invitation = DB::table('invitations')
             ->where('token', $request->token)
@@ -271,12 +287,41 @@ class TeamController extends Controller
             return $this->error('Invalid or expired invitation.', 404);
         }
 
+        // Check if the authenticated user is the one who was invited
+        if ($user->id != $invitation->invited_user_id) {
+            return $this->error('You are not authorized to accept this invitation.', 403);
+        }
+
         // Check if the invitation has already been accepted or rejected
         if ($invitation->accepted_at) {
             return $this->error('Invitation has already been accepted.', 400);
         }
         if ($invitation->rejected_at) {
             return $this->error('Invitation has already been rejected.', 400);
+        }
+
+        // Check if the user is already a member or leader of this team
+        $userAlreadyInTeam = DB::table('project_role_user')
+            ->where('project_id', $invitation->project_id)
+            ->where('team_id', $invitation->team_id)
+            ->where('user_id', $user->id)
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->exists();
+
+        if ($userAlreadyInTeam) {
+            return $this->error('You are already part of this team.', 400);
+        }
+
+        // Check if the user is already a manager of the project
+        $userIsManager = DB::table('project_role_user')
+            ->where('project_id', $invitation->project_id)
+            ->where('user_id', $user->id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id') // Manager has team_id = null
+            ->exists();
+
+        if ($userIsManager) {
+            return $this->error('You are already a manager of this project.', 400);
         }
 
         // Add the user to the project/team
@@ -294,7 +339,7 @@ class TeamController extends Controller
             ->where('id', $invitation->id)
             ->update(['accepted_at' => now()]);
 
-        // Notify the team leader
+        // Notify the team leader or project manager
         $leader = DB::table('project_role_user')
             ->where('team_id', $invitation->team_id)
             ->where('role_id', Role::ROLE_LEADER)
@@ -303,6 +348,7 @@ class TeamController extends Controller
             ->first();
 
         if ($leader) {
+            // Notify the team leader
             $notification = AppNotification::create([
                 'user_id' => $leader->id,
                 'message' => "User with ID {$invitation->invited_user_id} has accepted the invitation to join the team.",
@@ -317,6 +363,32 @@ class TeamController extends Controller
 
             // Broadcast the notification
             event(new NotificationSent($notification));
+        } else {
+            // If there's no team leader, notify the project manager
+            $projectManager = DB::table('project_role_user')
+                ->where('project_id', $invitation->project_id)
+                ->where('role_id', Role::ROLE_MANAGER)
+                ->whereNull('team_id') // Manager has team_id = null
+                ->join('users', 'project_role_user.user_id', '=', 'users.id')
+                ->select('users.*')
+                ->first();
+
+            if ($projectManager) {
+                $notification = AppNotification::create([
+                    'user_id' => $projectManager->id,
+                    'message' => "User with ID {$invitation->invited_user_id} has accepted the invitation to join the team (Team ID: {$invitation->team_id}).",
+                    'type' => 'info',
+                    'read' => false,
+                    'action_url' => NULL,
+                    'metadata' => [
+                        'user_id' => $invitation->invited_user_id,
+                        'team_id' => $invitation->team_id,
+                    ],
+                ]);
+
+                // Broadcast the notification
+                event(new NotificationSent($notification));
+            }
         }
 
         return $this->success([], 'Invitation accepted successfully.');
@@ -332,6 +404,9 @@ class TeamController extends Controller
             return $this->error($validator->errors()->first(), 422);
         }
 
+        // Get the authenticated user
+        $user = Auth::user();
+
         // Find the invitation by token
         $invitation = DB::table('invitations')
             ->where('token', $request->token)
@@ -339,6 +414,11 @@ class TeamController extends Controller
 
         if (!$invitation) {
             return $this->error('Invalid or expired invitation.', 404);
+        }
+
+        // Check if the authenticated user is the one who was invited
+        if ($user->id != $invitation->invited_user_id) {
+            return $this->error('You are not authorized to reject this invitation.', 403);
         }
 
         // Check if the invitation has already been accepted or rejected
@@ -914,13 +994,13 @@ class TeamController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-
+        
         // Find the team
         $team = Team::find($teamId);
         if (!$team) {
             return $this->error('Team not found.', 404);
         }
-
+        
         // Check if the user is a member or leader of the team
         $userRole = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -930,16 +1010,16 @@ class TeamController extends Controller
                     ->orWhereNull('team_id'); // Include manager (team_id = null)
             })
             ->value('role_id');
-
+            
         if (!$userRole) {
             return $this->error('You are not associated with this project or team.', 403);
         }
-
+        
         // Check if the user is the manager
         if ($userRole === Role::ROLE_MANAGER) {
             return $this->error('Manager cannot leave the team without assigning a new manager first.', 403);
         }
-
+        
         // Check if the user has incomplete tasks assigned only to them
         $incompleteTasksAssignedOnlyToUser = DB::table('task_members')
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
@@ -953,25 +1033,33 @@ class TeamController extends Controller
                     ->where('tm.user_id', '<>', Auth::id()); // Check if other users are assigned to the task
             })
             ->exists();
-
+            
         if ($incompleteTasksAssignedOnlyToUser) {
             return $this->error('You cannot leave the team because you have incomplete tasks assigned only to you.', 403);
         }
-
+        
         // Remove the user from the team
         DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('project_id', $team->project_id)
             ->where('team_id', $teamId)
             ->delete();
-
+            
         // Remove the user from all tasks related to this team
         DB::table('task_members')
             ->where('user_id', $user->id)
             ->where('team_id', $teamId)
             ->delete();
-
-        return $this->success([], 'You have successfully left the team.');
+        
+        // Check if the user is still associated with the project in another team
+        $stillInProject = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $team->project_id)
+            ->exists();
+        
+        return $this->success([
+            'still_in_project' => $stillInProject
+        ], 'You have successfully left the team.');
     }
 
     public function getMyTeams(Request $request)

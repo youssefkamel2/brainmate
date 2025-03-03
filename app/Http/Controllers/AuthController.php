@@ -127,7 +127,7 @@ class AuthController extends Controller
         $notification = Notification::create([
             'user_id' => $user->id,
             'message' => "You have been invited to join the team '{$team->name}' in the project '{$project->name}' as a {$role}.",
-            'type' => 'info',
+            'type' => 'invitation',
             'read' => false,
             'action_url' => url("https://brainmate.vercel.app/team-invitation-confirm?token={$invitation->token}"),
             'metadata' => [
