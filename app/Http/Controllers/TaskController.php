@@ -128,6 +128,7 @@ class TaskController extends Controller
                         'metadata' => [
                             'task_id' => $task->id,
                             'task_name' => $task->name,
+                            'team_id' => $task->team_id
                         ],
                     ]);
 
@@ -753,6 +754,7 @@ class TaskController extends Controller
                 'metadata' => [
                     'task_id' => $task->id,
                     'task_name' => $task->name,
+                    'team_id' => $task->team_id,
                     'note_description' => $taskNote->description,
                 ],
             ]);
@@ -775,6 +777,7 @@ class TaskController extends Controller
                     'metadata' => [
                         'task_id' => $task->id,
                         'task_name' => $task->name,
+                        'team_id' => $task->team_id,
                         'note_description' => $taskNote->description,
                     ],
                 ]);
@@ -857,6 +860,7 @@ class TaskController extends Controller
                 'metadata' => [
                     'task_id' => $task->id,
                     'task_name' => $task->name,
+                    'team_id' => $task->team_id,
                     'new_status' => $task->status_text,
                 ],
             ]);
@@ -878,6 +882,7 @@ class TaskController extends Controller
                     'metadata' => [
                         'task_id' => $task->id,
                         'task_name' => $task->name,
+                        'team_id' => $task->team_id,
                         'new_status' => $task->status_text,
                     ],
                 ]);
