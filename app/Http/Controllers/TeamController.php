@@ -917,17 +917,39 @@ class TeamController extends Controller
 
         // If the new role is leader
         if ($request->role_id == Role::ROLE_LEADER) {
-            // Remove the current leader
-            DB::table('project_role_user')
-                ->where('team_id', $teamId)
-                ->where('role_id', Role::ROLE_LEADER)
-                ->delete();
+
+            $currentLeader = DB::table('project_role_user')
+            ->where('project_id', $team->project_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->where('team_id', $teamId)
+            ->first();
+
+            // If there is a current leader, demote them to a member of the team
+            if ($currentLeader) {
+                // Remove the current leader's leader role
+                DB::table('project_role_user')
+                    ->where('user_id', $currentLeader->user_id)
+                    ->where('project_id', $team->project_id)
+                    ->where('team_id', $teamId)
+                    ->delete();
+
+                // Add the current leader as a member of the team
+                DB::table('project_role_user')->insert([
+                    'user_id' => $currentLeader->user_id,
+                    'role_id' => Role::ROLE_MEMBER,
+                    'project_id' => $team->project_id,
+                    'team_id' => $teamId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
 
             // Remove any existing roles for the new leader
             DB::table('project_role_user')
                 ->where('user_id', $request->user_id)
                 ->where('project_id', $team->project_id)
                 ->delete();
+
 
             // Assign the new leader
             DB::table('project_role_user')->insert([
