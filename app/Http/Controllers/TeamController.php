@@ -241,7 +241,7 @@ class TeamController extends Controller
                 'message' => "You have been invited to join the team '{$team->name}' in the project '{$project->name}' as a {$role}.",
                 'type' => 'invitation',
                 'read' => false,
-                'action_url' => url("https://brainmate.vercel.app/team-invitation-confirm?token={$token}"),
+                'action_url' => NULL,
                 'metadata' => [
                     'team_id' => $team->id,
                     'team_name' => $team->name,
@@ -265,33 +265,32 @@ class TeamController extends Controller
     }
 
     // accept invite
-    public function acceptInvitation(Request $request)
-    {
+    public function acceptInvitation(Request $request){
         $validator = Validator::make($request->all(), [
             'token' => 'required|string',
         ]);
-
+    
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
-
+    
         // Get the authenticated user
         $user = Auth::user();
-
+    
         // Find the invitation by token
         $invitation = DB::table('invitations')
             ->where('token', $request->token)
             ->first();
-
+    
         if (!$invitation) {
             return $this->error('Invalid or expired invitation.', 404);
         }
-
+    
         // Check if the authenticated user is the one who was invited
         if ($user->id != $invitation->invited_user_id) {
             return $this->error('You are not authorized to accept this invitation.', 403);
         }
-
+    
         // Check if the invitation has already been accepted or rejected
         if ($invitation->accepted_at) {
             return $this->error('Invitation has already been accepted.', 400);
@@ -299,7 +298,7 @@ class TeamController extends Controller
         if ($invitation->rejected_at) {
             return $this->error('Invitation has already been rejected.', 400);
         }
-
+    
         // Check if the user is already a member or leader of this team
         $userAlreadyInTeam = DB::table('project_role_user')
             ->where('project_id', $invitation->project_id)
@@ -307,11 +306,11 @@ class TeamController extends Controller
             ->where('user_id', $user->id)
             ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
             ->exists();
-
+    
         if ($userAlreadyInTeam) {
             return $this->error('You are already part of this team.', 400);
         }
-
+    
         // Check if the user is already a manager of the project
         $userIsManager = DB::table('project_role_user')
             ->where('project_id', $invitation->project_id)
@@ -319,11 +318,11 @@ class TeamController extends Controller
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id') // Manager has team_id = null
             ->exists();
-
+    
         if ($userIsManager) {
             return $this->error('You are already a manager of this project.', 400);
         }
-
+    
         // Add the user to the project/team
         DB::table('project_role_user')->insert([
             'user_id' => $invitation->invited_user_id,
@@ -333,12 +332,18 @@ class TeamController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-
+    
         // Mark the invitation as accepted
         DB::table('invitations')
             ->where('id', $invitation->id)
             ->update(['accepted_at' => now()]);
-
+    
+        // Update the notification type from 'invitation' to 'info'
+        DB::table('notifications')
+            ->where('metadata->token', $request->token)
+            ->where('type', 'invitation')
+            ->update(['type' => 'info']);
+    
         // Notify the team leader or project manager
         $leader = DB::table('project_role_user')
             ->where('team_id', $invitation->team_id)
@@ -346,7 +351,7 @@ class TeamController extends Controller
             ->join('users', 'project_role_user.user_id', '=', 'users.id')
             ->select('users.*')
             ->first();
-
+    
         if ($leader) {
             // Notify the team leader
             $notification = AppNotification::create([
@@ -360,7 +365,7 @@ class TeamController extends Controller
                     'team_id' => $invitation->team_id,
                 ],
             ]);
-
+    
             // Broadcast the notification
             event(new NotificationSent($notification));
         } else {
@@ -372,7 +377,7 @@ class TeamController extends Controller
                 ->join('users', 'project_role_user.user_id', '=', 'users.id')
                 ->select('users.*')
                 ->first();
-
+    
             if ($projectManager) {
                 $notification = AppNotification::create([
                     'user_id' => $projectManager->id,
@@ -385,42 +390,41 @@ class TeamController extends Controller
                         'team_id' => $invitation->team_id,
                     ],
                 ]);
-
+    
                 // Broadcast the notification
                 event(new NotificationSent($notification));
             }
         }
-
+    
         return $this->success([], 'Invitation accepted successfully.');
     }
 
-    public function rejectInvitation(Request $request)
-    {
+    public function rejectInvitation(Request $request) {
         $validator = Validator::make($request->all(), [
             'token' => 'required|string',
         ]);
-
+    
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
-
+    
         // Get the authenticated user
         $user = Auth::user();
-
+    
         // Find the invitation by token
         $invitation = DB::table('invitations')
             ->where('token', $request->token)
             ->first();
-
+    
         if (!$invitation) {
             return $this->error('Invalid or expired invitation.', 404);
         }
-
+    
         // Check if the authenticated user is the one who was invited
         if ($user->id != $invitation->invited_user_id) {
             return $this->error('You are not authorized to reject this invitation.', 403);
         }
-
+    
         // Check if the invitation has already been accepted or rejected
         if ($invitation->accepted_at) {
             return $this->error('Invitation has already been accepted.', 400);
@@ -428,12 +432,18 @@ class TeamController extends Controller
         if ($invitation->rejected_at) {
             return $this->error('Invitation has already been rejected.', 400);
         }
-
+    
         // Mark the invitation as rejected
         DB::table('invitations')
             ->where('id', $invitation->id)
             ->update(['rejected_at' => now()]);
-
+    
+        // Update the notification type from 'invitation' to 'info'
+        DB::table('notifications')
+            ->where('metadata->token', $request->token)
+            ->where('type', 'invitation')
+            ->update(['type' => 'info']);
+    
         // Notify the team leader
         $leader = DB::table('project_role_user')
             ->where('team_id', $invitation->team_id)
@@ -441,7 +451,7 @@ class TeamController extends Controller
             ->join('users', 'project_role_user.user_id', '=', 'users.id')
             ->select('users.*')
             ->first();
-
+    
         if ($leader) {
             $notification = AppNotification::create([
                 'user_id' => $leader->id,
@@ -454,11 +464,11 @@ class TeamController extends Controller
                     'team_id' => $invitation->team_id,
                 ],
             ]);
-
+    
             // Broadcast the notification
             event(new NotificationSent($notification));
         }
-
+    
         return $this->success([], 'Invitation rejected successfully.');
     }
 
