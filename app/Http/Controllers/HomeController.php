@@ -47,6 +47,8 @@ class HomeController extends Controller
                 'status' => $task->status, // Numeric status
                 'status_text' => $this->getStatusText($task->status), // Add status text for readability
                 'team_id' => $task->team_id,
+                'team_name' => $task->team->name,
+                'project_name' => $task->team->project->name,
             ];
         });
     
@@ -123,6 +125,8 @@ class HomeController extends Controller
                 'status' => $task->status, // Numeric status
                 'status_text' => $this->getStatusText($task->status), // Add status text for readability
                 'team_id' => $task->team_id,
+                'team_name' => $task->team->name,
+                'project_name' => $task->team->project->name,
             ];
         });
 
