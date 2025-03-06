@@ -457,6 +457,8 @@ class TaskController extends Controller
                 'status' => $task->status,
                 'is_overdue' => $task->is_overdue, // Add the overdue flag
                 'team_id' => $task->team_id,
+                'team_name' => $task->team->name,
+                'project_name' => $task->team->project->name,
                 'assigned_to_me' => $task->members->contains('id', $user->id),
                 'created_at' => $task->created_at, // Include created_at
                 'updated_at' => $task->updated_at,
@@ -641,6 +643,8 @@ class TaskController extends Controller
             'deadline' => $task->deadline,
             'status' => $task->status,
             'team_id' => $task->team_id,
+            'team_name' => $task->team->name,
+            'project_name' => $task->team->project->name,
             'created_at' => $task->created_at,
             'updated_at' => $task->updated_at,
             'assigned_to_me' => $task->members->contains('id', $user->id),
