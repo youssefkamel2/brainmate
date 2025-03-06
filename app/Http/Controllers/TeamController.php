@@ -69,6 +69,7 @@ class TeamController extends Controller
         // Validate the request
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
+            'description' => 'sometimes|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -98,7 +99,7 @@ class TeamController extends Controller
         }
 
         // Update the team
-        $team->update($request->only('name'));
+        $team->update($request->only(['name', 'description']));
 
         return $this->success(['team' => $team], 'Team updated successfully.');
     }
