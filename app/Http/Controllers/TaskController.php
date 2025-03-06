@@ -457,6 +457,7 @@ class TaskController extends Controller
                 'status' => $task->status,
                 'is_overdue' => $task->is_overdue, // Add the overdue flag
                 'team_id' => $task->team_id,
+                'project_id' => $task->team->project_id,
                 'team_name' => $task->team->name,
                 'project_name' => $task->team->project->name,
                 'assigned_to_me' => $task->members->contains('id', $user->id),
