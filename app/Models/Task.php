@@ -11,6 +11,10 @@ class Task extends Model
 
     protected $table = 'tasks';
 
+    protected $casts = [
+        'deadline' => 'datetime', // Cast the deadline to a Carbon instance
+    ];
+
     // Define status constants as numbers
     const STATUS_PENDING = 1;      // Task has been created but not yet started
     const STATUS_IN_PROGRESS = 2;  // Task is currently being worked on

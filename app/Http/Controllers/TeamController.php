@@ -32,6 +32,7 @@ class TeamController extends Controller
         // Validate the request
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -51,6 +52,7 @@ class TeamController extends Controller
         // Create the team
         $team = Team::create([
             'name' => $request->name,
+            'description' => $request->description,
             'project_id' => $projectId,
             'added_by' => $user->id,
         ]);
