@@ -85,10 +85,10 @@ class Task extends Model
     {
         // A task is overdue if:
         // 1. It has a deadline.
-        // 2. The deadline has passed.
+        // 2. The deadline has fully passed (starting from the next day).
         // 3. The status is pending, in_progress, or in_review.
         return $this->deadline &&
-            now()->gt($this->deadline) &&
+            now()->startOfDay()->gt($this->deadline->startOfDay()) && // Check if the deadline has fully passed
             in_array($this->status, [
                 self::STATUS_PENDING,
                 self::STATUS_IN_PROGRESS,
