@@ -20,17 +20,29 @@ console_command = 'php /var/www/html/artisan tinker'
   SESSION_DRIVER = 'cookie'
   SESSION_SECURE_COOKIE = 'true'
 
+# Define processes for the application
+[processes]
+  app = "php artisan serve --port=8080"  # Process for serving the web application
+  worker = "php artisan queue:work"      # Process for handling queued jobs
+
+# HTTP service configuration
 [http_service]
   internal_port = 8080
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
+  processes = ["app"]  # Only the 'app' process belongs to the HTTP service
 
-# Define processes for the application
-[processes]
-  app = "php artisan serve --port=8080"  # Process for serving the web application
-  worker = "php artisan queue:work"      # Process for handling queued jobs
+# Worker service configuration (separate from HTTP service)
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  processes = ["worker"]  # The 'worker' process runs separately
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 25
+    soft_limit = 20
 
 [[vm]]
   memory = '1gb'
