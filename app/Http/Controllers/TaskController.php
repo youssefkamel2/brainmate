@@ -16,14 +16,15 @@ use App\Traits\ResponseTrait;
 use App\Events\NotificationSent;
 use App\Traits\MemberColorTrait;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Activitylog\Facades\LogBatch;
 use Illuminate\Support\Facades\Validator;
+use App\Jobs\SendTaskAssignedNotifications;
 use Spatie\Activitylog\Facades\CauserResolver;
 use App\Notifications\TaskAssignedNotification;
 use App\Notifications\TaskNoteAddedNotification;
 use App\Notifications\TaskStatusUpdatedNotification;
-use Illuminate\Support\Facades\Bus;
 
 
 class TaskController extends Controller
@@ -114,31 +115,11 @@ class TaskController extends Controller
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
-
+    
                 $member = User::find($memberId);
                 if ($member) {
-                    // Use the dispatch helper to send notifications after the response
-                    dispatch(function () use ($member, $task) {
-                        // Send email notification
-                        $member->notify(new TaskAssignedNotification($task));
-
-                        // Send read-only notification
-                        $notification = Notification::create([
-                            'user_id' => $member->id,
-                            'message' => "You have been assigned a new task: {$task->name}.",
-                            'type' => 'info',
-                            'read' => false,
-                            'action_url' => NULL,
-                            'metadata' => [
-                                'task_id' => $task->id,
-                                'task_name' => $task->name,
-                                'team_id' => $task->team_id
-                            ],
-                        ]);
-
-                        // Broadcast the notification
-                        event(new NotificationSent($notification));
-                    })->afterResponse(); // Ensure the job runs after the response is sent
+                    // Dispatch the job after the response is sent
+                    dispatch(new SendTaskAssignedNotifications($member, $task))->afterResponse();
                 }
             }
         }
