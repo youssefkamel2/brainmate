@@ -23,6 +23,8 @@ use Spatie\Activitylog\Facades\CauserResolver;
 use App\Notifications\TaskAssignedNotification;
 use App\Notifications\TaskNoteAddedNotification;
 use App\Notifications\TaskStatusUpdatedNotification;
+use Illuminate\Support\Facades\Bus;
+
 
 class TaskController extends Controller
 {
@@ -115,25 +117,28 @@ class TaskController extends Controller
 
                 $member = User::find($memberId);
                 if ($member) {
-                    // Send email notification
-                    $member->notify(new TaskAssignedNotification($task));
+                    // Use the dispatch helper to send notifications after the response
+                    dispatch(function () use ($member, $task) {
+                        // Send email notification
+                        $member->notify(new TaskAssignedNotification($task));
 
-                    // Send read-only notification
-                    $notification = Notification::create([
-                        'user_id' => $member->id,
-                        'message' => "You have been assigned a new task: {$task->name}.",
-                        'type' => 'info',
-                        'read' => false,
-                        'action_url' => NULL,
-                        'metadata' => [
-                            'task_id' => $task->id,
-                            'task_name' => $task->name,
-                            'team_id' => $task->team_id
-                        ],
-                    ]);
+                        // Send read-only notification
+                        $notification = Notification::create([
+                            'user_id' => $member->id,
+                            'message' => "You have been assigned a new task: {$task->name}.",
+                            'type' => 'info',
+                            'read' => false,
+                            'action_url' => NULL,
+                            'metadata' => [
+                                'task_id' => $task->id,
+                                'task_name' => $task->name,
+                                'team_id' => $task->team_id
+                            ],
+                        ]);
 
-                    // Broadcast the notification
-                    event(new NotificationSent($notification));
+                        // Broadcast the notification
+                        event(new NotificationSent($notification));
+                    })->afterResponse(); // Ensure the job runs after the response is sent
                 }
             }
         }
@@ -170,6 +175,7 @@ class TaskController extends Controller
 
         return $this->success(['task' => $task], 'Task created successfully.');
     }
+
 
     // Update Task (Team Leader & manager)
     public function updateTask(Request $request, $taskId)
@@ -482,7 +488,7 @@ class TaskController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-    
+
         // Retrieve the task with its members, notes, and attachments
         $task = Task::with([
             'members',
@@ -492,11 +498,11 @@ class TaskController extends Controller
             'notes.user', // Load the user relationship for each note
             'attachments'
         ])->find($taskId);
-    
+
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
-    
+
         // Check if the user is authorized to view the task
         $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
@@ -504,30 +510,30 @@ class TaskController extends Controller
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id') // Manager has team_id = null
             ->exists();
-    
+
         $isLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_LEADER)
             ->exists();
-    
+
         $isMember = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_MEMBER)
             ->exists();
-    
+
         if (!$isManager && !$isLeader && !$isMember) {
             return $this->error('You are not part of this team.', 403);
         }
-    
+
         // Log the view event only if the user hasn't viewed the task before
         $hasViewed = \Spatie\Activitylog\Models\Activity::where('subject_type', Task::class)
             ->where('subject_id', $task->id)
             ->where('causer_id', $user->id)
             ->where('event', 'viewed')
             ->exists();
-    
+
         if (!$hasViewed) {
             activity()
                 ->causedBy($user)
@@ -535,7 +541,7 @@ class TaskController extends Controller
                 ->event('viewed')
                 ->log('Task viewed');
         }
-    
+
         // Retrieve logs related to the task, notes, and attachments
         $logs = \Spatie\Activitylog\Models\Activity::where(function ($query) use ($task) {
             $query->where('subject_type', Task::class)
@@ -547,42 +553,42 @@ class TaskController extends Controller
         })
             ->orderBy('created_at', 'desc')
             ->get();
-    
+
         // Filter logs based on the user's role
         $filteredLogs = $logs->filter(function ($log) use ($user, $task) {
             $causerRole = $log->causer ? $log->causer->getRoleInTeam($task->team->project_id) : null;
-    
+
             // If the log causer is the current user, always include it
             if ($log->causer_id === $user->id) {
                 return true;
             }
-    
+
             // Get the current user's role in the project
             $userRole = $user->getRoleInTeam($task->team->project_id);
-    
+
             // If the current user is a manager, include only their own logs
             if ($userRole === 'manager') {
                 return $log->causer_id === $user->id;
             }
-    
+
             // If the current user is a leader, include logs from themselves, members, and other leaders
             if ($userRole === 'leader') {
                 return in_array($causerRole, ['member', 'leader']);
             }
-    
+
             // If the current user is a member, include logs from themselves and other members
             if ($userRole === 'member') {
                 return $causerRole === 'member';
             }
-    
+
             return false;
         });
-    
+
         // Format the filtered logs for display
         $formattedLogs = $filteredLogs->map(function ($log) use ($task) {
             $description = $log->description;
             $userName = $log->causer ? $log->causer->name : 'System';
-    
+
             switch ($log->event) {
                 case 'created':
                     if ($log->subject_type === Task::class) {
@@ -595,7 +601,7 @@ class TaskController extends Controller
                         $description = "added a note: {$noteDescription}.";
                     }
                     break;
-    
+
                 case 'updated':
                     if ($log->subject_type === Task::class) {
                         $properties = json_decode($log->properties, true);
@@ -608,11 +614,11 @@ class TaskController extends Controller
                         }
                     }
                     break;
-    
+
                 case 'viewed':
                     $description = "viewed the task.";
                     break;
-    
+
                 case 'deleted':
                     if ($log->subject_type === Attachment::class) {
                         $attachmentName = $log->subject ? $log->subject->name : 'an attachment';
@@ -620,7 +626,7 @@ class TaskController extends Controller
                     }
                     break;
             }
-    
+
             return [
                 'id' => $log->id,
                 'description' => $description,
@@ -633,7 +639,7 @@ class TaskController extends Controller
                 'created_at' => $log->created_at,
             ];
         });
-    
+
         // Format the response
         $formattedTask = [
             'id' => $task->id,
@@ -684,7 +690,7 @@ class TaskController extends Controller
             }),
             'logs' => $formattedLogs->values(), // Reset keys for JSON response
         ];
-    
+
         return $this->success(['task' => $formattedTask], 'Task retrieved successfully.');
     }
 
