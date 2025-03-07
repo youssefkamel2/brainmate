@@ -170,6 +170,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('notifications')->group(function () {
             Route::get('/', [NotificationController::class, 'index']); // Get all notifications
             Route::post('/{notificationId}/read', [NotificationController::class, 'markAsRead']); // Mark as read
+            Route::post('/mark-all-as-read', [NotificationController::class, 'markAllAsRead']); // Mark all as read
             Route::delete('/{notificationId}', [NotificationController::class, 'destroy']); // Delete notification
         });
     });

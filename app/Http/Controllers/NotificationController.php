@@ -39,6 +39,19 @@ class NotificationController extends Controller
         return $this->success($notification, 'Notification marked as read.');
     }
 
+    // Mark all notifications as read
+    public function markAllAsRead()
+    {
+        $user = Auth::user();
+
+        // Mark all unread notifications as read
+        Notification::where('user_id', $user->id)
+            ->where('read', false)
+            ->update(['read' => true]);
+
+        return $this->success(null, 'All notifications marked as read.');
+    }
+
     // Delete a notification
     public function destroy($notificationId)
     {
