@@ -609,22 +609,22 @@ class TeamController extends Controller
             ->get();
 
         // Combine all users into a single collection
-        $allMembers = collect([]);
+        // $allMembers = collect([]);
 
-        if ($manager) {
-            $allMembers->push($manager);
-        }
+        // if ($manager) {
+        //     $allMembers->push($manager);
+        // }
 
-        if ($leader) {
-            $allMembers->push($leader);
-        }
+        // if ($leader) {
+        //     $allMembers->push($leader);
+        // }
 
-        if ($members->isNotEmpty()) {
-            $allMembers = $allMembers->merge($members);
-        }
+        // if ($members->isNotEmpty()) {
+        //     $allMembers = $allMembers->merge($members);
+        // }
 
         // Add the members and the user's role to the team object
-        $team->all_members = $allMembers;
+        // $team->all_members = $allMembers;
         $team->role = $userRole; // Add the user's role to the response
         $team->project_name = Project::find($projectId)->name;
 
