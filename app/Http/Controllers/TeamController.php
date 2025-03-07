@@ -626,6 +626,7 @@ class TeamController extends Controller
         // Add the members and the user's role to the team object
         $team->all_members = $allMembers;
         $team->role = $userRole; // Add the user's role to the response
+        $team->project_name = Project::find($projectId)->name;
 
         return $this->success(['team' => $team], 'Team details retrieved successfully.');
     }
