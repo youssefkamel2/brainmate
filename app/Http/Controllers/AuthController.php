@@ -129,7 +129,7 @@ class AuthController extends Controller
             'message' => "You have been invited to join the team '{$team->name}' in the project '{$project->name}' as a {$role}.",
             'type' => 'invitation',
             'read' => false,
-            'action_url' => url("https://brainmate.vercel.app/team-invitation-confirm?token={$invitation->token}"),
+            'action_url' => NULL,
             'metadata' => [
                 'team_id' => $team->id,
                 'team_name' => $team->name,
@@ -347,28 +347,42 @@ class AuthController extends Controller
 
     // google login 
 
-    public function redirectToGoogle()
+    public function redirectToGoogle(Request $request)
     {
-        return Socialite::driver('google')->redirect();
+        // Pass the invitation_token to Google's OAuth flow
+        return Socialite::driver('google')
+            ->with(['invitation_token' => $request->invitation_token])
+            ->redirect();
     }
 
-    public function handleGoogleCallback()
+    public function handleGoogleCallback(Request $request)
     {
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
-
-            // Your logic to find or create the user in your database
-            $user = User::firstOrCreate(
-                ['email' => $googleUser->getEmail()],
-                [
+    
+            // Check if the user already exists
+            $user = User::where('email', $googleUser->getEmail())->first();
+    
+            if (!$user) {
+                // Create a new user if they don't exist
+                $user = User::create([
                     'name' => $googleUser->getName(),
-                    'password' => bcrypt(Str::random(16)),
-                ]
-            );
-
+                    'email' => $googleUser->getEmail(),
+                    'password' => bcrypt(Str::random(16)), // Random password for Google users
+                ]);
+            }
+    
+            // Handle invitation token if present
+            if ($request->has('invitation_token')) {
+                $invitationToken = $request->invitation_token;
+    
+                // Validate and process the invitation token
+                $this->handleInvitationToken($user, $invitationToken);
+            }
+    
             // Generate JWT for the user
             $token = JWTAuth::fromUser($user);
-
+    
             // Redirect to React frontend with token
             $frontendUrl = env('FRONTEND_URL', 'https://brainmate.vercel.app/login');
             return redirect()->to("{$frontendUrl}?token={$token}");
