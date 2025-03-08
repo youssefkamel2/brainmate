@@ -103,7 +103,46 @@ class AuthController extends Controller
     }
 
     // Handle invitation token during signup
+    protected function handleInvitationToken(User $user, string $token)
+    {
+        // Find the invitation by token
+        $invitation = DB::table('invitations')
+            ->where('token', $token)
+            ->first();
 
+        if (!$invitation) {
+            return; // Invalid or expired token
+        }
+
+        // Associate the invitation with the new user
+        DB::table('invitations')
+            ->where('id', $invitation->id)
+            ->update(['invited_user_id' => $user->id]);
+
+        // Create a system notification for the new user
+        $team = Team::find($invitation->team_id);
+        $project = Project::find($invitation->project_id);
+        $role = Role::find($invitation->role_id)->name;
+
+        $notification = Notification::create([
+            'user_id' => $user->id,
+            'message' => "You have been invited to join the team '{$team->name}' in the project '{$project->name}' as a {$role}.",
+            'type' => 'invitation',
+            'read' => false,
+            'action_url' => NULL,
+            'metadata' => [
+                'team_id' => $team->id,
+                'team_name' => $team->name,
+                'project_id' => $project->id,
+                'project_name' => $project->name,
+                'role' => $role,
+                'token' => $invitation->token,
+            ],
+        ]);
+
+        // Broadcast the notification
+        event(new NotificationSent($notification));
+    }
 
     // Login method
     public function login(Request $request)
@@ -307,42 +346,29 @@ class AuthController extends Controller
     }
 
     // google login 
-    public function redirectToGoogle(Request $request)
+
+    public function redirectToGoogle()
     {
-        // Pass the invitation_token to Google's OAuth flow
-        return Socialite::driver('google')
-            ->with(['state' => $request->invitation_token]) // Pass the token as state
-            ->redirect();
+        return Socialite::driver('google')->redirect();
     }
 
-    public function handleGoogleCallback(Request $request)
+    public function handleGoogleCallback()
     {
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
-    
-            // Retrieve the invitation_token from the state parameter
-            $invitationToken = $request->state;
-    
-            // Check if the user already exists
-            $user = User::where('email', $googleUser->getEmail())->first();
-    
-            if (!$user) {
-                // Create a new user if they don't exist
-                $user = User::create([
+
+            // Your logic to find or create the user in your database
+            $user = User::firstOrCreate(
+                ['email' => $googleUser->getEmail()],
+                [
                     'name' => $googleUser->getName(),
-                    'email' => $googleUser->getEmail(),
-                    'password' => bcrypt(Str::random(16)), // Random password for Google users
-                ]);
-            }
-    
-            // Handle invitation token if present
-            if ($invitationToken) {
-                $this->handleInvitationToken($user, $invitationToken);
-            }
-    
+                    'password' => bcrypt(Str::random(16)),
+                ]
+            );
+
             // Generate JWT for the user
             $token = JWTAuth::fromUser($user);
-    
+
             // Redirect to React frontend with token
             $frontendUrl = env('FRONTEND_URL', 'https://brainmate.vercel.app/login');
             return redirect()->to("{$frontendUrl}?token={$token}");
@@ -351,47 +377,6 @@ class AuthController extends Controller
                 'error' => 'Error during authentication: ' . $e->getMessage(),
             ], 500);
         }
-    }
-
-    protected function handleInvitationToken(User $user, string $token)
-    {
-        // Find the invitation by token
-        $invitation = DB::table('invitations')
-            ->where('token', $token)
-            ->first();
-
-        if (!$invitation) {
-            return; // Invalid or expired token
-        }
-
-        // Associate the invitation with the new user
-        DB::table('invitations')
-            ->where('id', $invitation->id)
-            ->update(['invited_user_id' => $user->id]);
-
-        // Create a system notification for the new user
-        $team = Team::find($invitation->team_id);
-        $project = Project::find($invitation->project_id);
-        $role = Role::find($invitation->role_id)->name;
-
-        $notification = Notification::create([
-            'user_id' => $user->id,
-            'message' => "You have been invited to join the team '{$team->name}' in the project '{$project->name}' as a {$role}.",
-            'type' => 'invitation',
-            'read' => false,
-            'action_url' => NULL,
-            'metadata' => [
-                'team_id' => $team->id,
-                'team_name' => $team->name,
-                'project_id' => $project->id,
-                'project_name' => $project->name,
-                'role' => $role,
-                'token' => $invitation->token,
-            ],
-        ]);
-
-        // Broadcast the notification
-        event(new NotificationSent($notification));
     }
 
     public function validateToken(Request $request)
