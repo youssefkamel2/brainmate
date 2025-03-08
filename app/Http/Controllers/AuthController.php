@@ -103,46 +103,7 @@ class AuthController extends Controller
     }
 
     // Handle invitation token during signup
-    protected function handleInvitationToken(User $user, string $token)
-    {
-        // Find the invitation by token
-        $invitation = DB::table('invitations')
-            ->where('token', $token)
-            ->first();
 
-        if (!$invitation) {
-            return; // Invalid or expired token
-        }
-
-        // Associate the invitation with the new user
-        DB::table('invitations')
-            ->where('id', $invitation->id)
-            ->update(['invited_user_id' => $user->id]);
-
-        // Create a system notification for the new user
-        $team = Team::find($invitation->team_id);
-        $project = Project::find($invitation->project_id);
-        $role = Role::find($invitation->role_id)->name;
-
-        $notification = Notification::create([
-            'user_id' => $user->id,
-            'message' => "You have been invited to join the team '{$team->name}' in the project '{$project->name}' as a {$role}.",
-            'type' => 'invitation',
-            'read' => false,
-            'action_url' => NULL,
-            'metadata' => [
-                'team_id' => $team->id,
-                'team_name' => $team->name,
-                'project_id' => $project->id,
-                'project_name' => $project->name,
-                'role' => $role,
-                'token' => $invitation->token,
-            ],
-        ]);
-
-        // Broadcast the notification
-        event(new NotificationSent($notification));
-    }
 
     // Login method
     public function login(Request $request)
@@ -346,12 +307,11 @@ class AuthController extends Controller
     }
 
     // google login 
-
     public function redirectToGoogle(Request $request)
     {
         // Pass the invitation_token to Google's OAuth flow
         return Socialite::driver('google')
-            ->with(['invitation_token' => $request->invitation_token])
+            ->with(['state' => $request->invitation_token]) // Pass the token as state
             ->redirect();
     }
 
@@ -359,6 +319,9 @@ class AuthController extends Controller
     {
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
+    
+            // Retrieve the invitation_token from the state parameter
+            $invitationToken = $request->state;
     
             // Check if the user already exists
             $user = User::where('email', $googleUser->getEmail())->first();
@@ -373,10 +336,7 @@ class AuthController extends Controller
             }
     
             // Handle invitation token if present
-            if ($request->has('invitation_token')) {
-                $invitationToken = $request->invitation_token;
-    
-                // Validate and process the invitation token
+            if ($invitationToken) {
                 $this->handleInvitationToken($user, $invitationToken);
             }
     
@@ -391,6 +351,47 @@ class AuthController extends Controller
                 'error' => 'Error during authentication: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    protected function handleInvitationToken(User $user, string $token)
+    {
+        // Find the invitation by token
+        $invitation = DB::table('invitations')
+            ->where('token', $token)
+            ->first();
+
+        if (!$invitation) {
+            return; // Invalid or expired token
+        }
+
+        // Associate the invitation with the new user
+        DB::table('invitations')
+            ->where('id', $invitation->id)
+            ->update(['invited_user_id' => $user->id]);
+
+        // Create a system notification for the new user
+        $team = Team::find($invitation->team_id);
+        $project = Project::find($invitation->project_id);
+        $role = Role::find($invitation->role_id)->name;
+
+        $notification = Notification::create([
+            'user_id' => $user->id,
+            'message' => "You have been invited to join the team '{$team->name}' in the project '{$project->name}' as a {$role}.",
+            'type' => 'invitation',
+            'read' => false,
+            'action_url' => NULL,
+            'metadata' => [
+                'team_id' => $team->id,
+                'team_name' => $team->name,
+                'project_id' => $project->id,
+                'project_name' => $project->name,
+                'role' => $role,
+                'token' => $invitation->token,
+            ],
+        ]);
+
+        // Broadcast the notification
+        event(new NotificationSent($notification));
     }
 
     public function validateToken(Request $request)
