@@ -578,8 +578,8 @@ class TaskController extends Controller
                         $attachmentName = $log->subject ? $log->subject->name : 'an attachment';
                         $description = "added an attachment: {$attachmentName}.";
                     } elseif ($log->subject_type === TaskNote::class) {
-                        // $noteDescription = $log->subject ? $log->subject->description : 'a note';
-                        $description = "added a note.";
+                        $noteDescription = $log->subject ? $log->subject->description : 'a note';
+                        $description = "added a note: {$noteDescription}.";
                     }
                     break;
 

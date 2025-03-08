@@ -196,17 +196,19 @@ class TeamController extends Controller
             }
         }
 
-        // Check if there's already a pending invitation for this email and team
-        $existingInvitation = DB::table('invitations')
-            ->where('project_id', $team->project_id)
-            ->where('team_id', $teamId)
-            ->where('invited_user_id', $invitedUser->id)
-            ->whereNull('accepted_at') // Not accepted
-            ->whereNull('rejected_at') // Not rejected
-            ->first();
+        // Check if there's already a pending invitation for this email and team, if the user does not exist then don't check
+        if ($invitedUser) {
+            $existingInvitation = DB::table('invitations')
+                ->where('project_id', $team->project_id)
+                ->where('team_id', $teamId)
+                ->where('invited_user_id', $invitedUser->id)
+                ->whereNull('accepted_at') // Not accepted
+                ->whereNull('rejected_at') // Not rejected
+                ->first();
 
-        if ($existingInvitation) {
-            return $this->error('An invitation is already pending for this user.', 422);
+            if ($existingInvitation) {
+                return $this->error('An invitation is already pending for this user.', 422);
+            }
         }
 
         // If the role is leader, check if there's already a leader
