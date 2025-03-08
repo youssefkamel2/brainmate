@@ -354,9 +354,11 @@ class AuthController extends Controller
 
     public function handleGoogleCallback()
     {
+
         try {
             $googleUser = Socialite::driver('google')->stateless()->user();
 
+            print_r($googleUser);die;
             // Your logic to find or create the user in your database
             $user = User::firstOrCreate(
                 ['email' => $googleUser->getEmail()],
