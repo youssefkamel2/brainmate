@@ -547,9 +547,9 @@ class TaskController extends Controller
             // Get the current user's role in the project
             $userRole = $user->getRoleInTeam($task->team->project_id);
 
-            // If the current user is a manager, include only their own logs
+            // If the current user is a manager, include all logs
             if ($userRole === 'manager') {
-                return $log->causer_id === $user->id;
+                return true;
             }
 
             // If the current user is a leader, include logs from themselves, members, and other leaders
