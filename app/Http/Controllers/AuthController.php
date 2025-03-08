@@ -70,7 +70,12 @@ class AuthController extends Controller
             'linkedin' => $request->linkedin ?? null,
             'website' => $request->website ?? null,
         ];
-
+        
+        if ($request->invitation_token) {
+            print_r($request);die;
+            // $this->handleInvitationToken($user, $request->invitation_token);
+        }
+        die;
         // Create a new user
         $user = User::create([
             'name' => $request->name,
@@ -88,9 +93,6 @@ class AuthController extends Controller
         ]);
 
         // Handle invitation token (if provided)
-        if ($request->invitation_token) {
-            $this->handleInvitationToken($user, $request->invitation_token);
-        }
 
         // Generate a JWT token for the user
         $token = JWTAuth::fromUser($user);
@@ -129,7 +131,7 @@ class AuthController extends Controller
             'message' => "You have been invited to join the team '{$team->name}' in the project '{$project->name}' as a {$role}.",
             'type' => 'invitation',
             'read' => false,
-            'action_url' => url("https://brainmate.vercel.app/team-invitation-confirm?token={$invitation->token}"),
+            'action_url' => NULL,
             'metadata' => [
                 'team_id' => $team->id,
                 'team_name' => $team->name,
