@@ -371,6 +371,10 @@ class TeamController extends Controller
                 'metadata' => [
                     'user_id' => $invitation->invited_user_id,
                     'team_id' => $invitation->team_id,
+                    'team_name' => Team::find($invitation->team_id)->name,
+                    'project_id' => $invitation->project_id,
+                    'project_name' => Project::find($invitation->project_id)->name,
+
                 ],
             ]);
     
@@ -396,6 +400,9 @@ class TeamController extends Controller
                     'metadata' => [
                         'user_id' => $invitation->invited_user_id,
                         'team_id' => $invitation->team_id,
+                        'team_name' => Team::find($invitation->team_id)->name,
+                        'project_id' => $invitation->project_id,
+                        'project_name' => Project::find($invitation->project_id)->name,
                     ],
                 ]);
     
@@ -470,6 +477,9 @@ class TeamController extends Controller
                 'metadata' => [
                     'user_id' => $invitation->invited_user_id,
                     'team_id' => $invitation->team_id,
+                    'team_name' => Team::find($invitation->team_id)->name,
+                    'project_id' => $invitation->project_id,
+                    'project_name' => Project::find($invitation->project_id)->name,
                 ],
             ]);
     
