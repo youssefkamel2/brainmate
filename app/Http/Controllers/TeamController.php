@@ -221,6 +221,7 @@ class TeamController extends Controller
 
         // Generate a unique token for the invitation
         $token = Str::random(60);
+        $expiresAt = now()->addDays(3);
 
         // Store the invitation in the invitations table
         DB::table('invitations')->insert([
@@ -228,8 +229,10 @@ class TeamController extends Controller
             'team_id' => $teamId,
             'invited_by' => $user->id,
             'invited_user_id' => $invitedUser ? $invitedUser->id : null,
+            'email' => $request->email,
             'role_id' => $request->role_id,
             'token' => $token,
+            'expires_at' => $expiresAt,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -263,7 +266,7 @@ class TeamController extends Controller
 
             // If the user does not exist, send an email notification
             Notification::route('mail', $request->email)
-                ->notify(new TeamInvitationNotification($team, $project, $role, $token));
+                ->notify(new TeamInvitationNotification($team, $project, $role, $token, $request->email));
         }
 
         return $this->success([], 'Invitation sent successfully.');

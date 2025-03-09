@@ -14,10 +14,12 @@ class CreateInvitationsTable extends Migration
             $table->foreignId('team_id')->nullable()->constrained('teams')->onDelete('cascade');
             $table->foreignId('invited_by')->nullable()->constrained('users')->onDelete('cascade');
             $table->foreignId('invited_user_id')->nullable()->constrained('users')->onDelete('cascade');
+            $table->string('email');
             $table->foreignId('role_id')->constrained('roles')->onDelete('cascade');
             $table->string('token')->unique(); // Unique token for the invitation
+            $table->timestamp('expires_at')->nullable(); // Expiration date for the invitation
             $table->timestamp('accepted_at')->nullable(); // Timestamp when the invitation is accepted
-            $table->timestamp('rejected_at')->nullable(); // Timestamp when the invitation is accepted
+            $table->timestamp('rejected_at')->nullable(); // Timestamp when the invitation is rejected
             $table->timestamps();
         });
     }

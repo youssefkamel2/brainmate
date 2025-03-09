@@ -52,17 +52,35 @@ class AuthController extends Controller
             'experience_years' => 'nullable|integer|min:0',
             'invitation_token' => 'nullable|string', // Add invitation token
         ]);
-
+    
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
-
+    
+        // Handle invitation token (if provided)
+        if ($request->invitation_token) {
+            // Find the invitation by token
+            $invitation = DB::table('invitations')
+                ->where('token', $request->invitation_token)
+                ->where('expires_at', '>', now()) // Check if the invitation is not expired
+                ->first();
+    
+            if (!$invitation) {
+                return $this->error('Invalid or expired invitation token.', 400);
+            }
+    
+            // Check if the email matches the invitation email
+            if ($request->email !== $invitation->email) {
+                return $this->error('The email does not match the invitation.', 400);
+            }
+        }
+    
         // Normalize the skills field
         $skills = $request->skills;
         if (is_string($skills)) {
             $skills = explode(',', $skills);
         }
-
+    
         // Prepare the social field
         $social = [
             'facebook' => $request->facebook ?? null,
@@ -70,7 +88,7 @@ class AuthController extends Controller
             'linkedin' => $request->linkedin ?? null,
             'website' => $request->website ?? null,
         ];
-
+    
         // Create a new user
         $user = User::create([
             'name' => $request->name,
@@ -86,15 +104,15 @@ class AuthController extends Controller
             'social' => $social,
             'experience_years' => $request->experience_years,
         ]);
-
+    
         // Handle invitation token (if provided)
         if ($request->invitation_token) {
             $this->handleInvitationToken($user, $request->invitation_token);
         }
-
+    
         // Generate a JWT token for the user
         $token = JWTAuth::fromUser($user);
-
+    
         // Return success response with user data and token
         return $this->success([
             'user' => $user,
@@ -108,6 +126,7 @@ class AuthController extends Controller
         // Find the invitation by token
         $invitation = DB::table('invitations')
             ->where('token', $token)
+            ->where('expires_at', '>', now()) // Check if the invitation is not expired
             ->first();
 
         if (!$invitation) {
