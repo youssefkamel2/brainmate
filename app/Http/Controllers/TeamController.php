@@ -69,7 +69,7 @@ class TeamController extends Controller
         // Validate the request
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
-            'description' => 'sometimes|string|max:255',
+            'description' => 'sometimes|string',
         ]);
 
         if ($validator->fails()) {
