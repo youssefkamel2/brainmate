@@ -734,6 +734,7 @@ class TaskController extends Controller
         $taskMembers = $task->members;
 
         if ($teamLeader) {
+
             // $teamLeader->notify(new TaskNoteAddedNotification($task, $taskNote));
 
             // Send notification to team leader
