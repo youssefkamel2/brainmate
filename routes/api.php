@@ -102,6 +102,10 @@ Route::prefix('v1')->group(function () {
             Route::put('/{taskId}/status', [TaskController::class, 'updateTaskStatus']); // update state
             Route::post('/{taskId}/attachments', [TaskController::class, 'addAttachments']); // Add attachments to a task
             Route::delete('/attachments/{attachmentId}', [TaskController::class, 'removeAttachment']); // Remove an attachment from a task
+            Route::get('/teams/{teamId}/backlog', [TaskController::class, 'getBacklogTasks']);
+            Route::post('/backlog/publish-bulk', [TaskController::class, 'publishBulkBacklogTasks']);
+            Route::post('/backlog/delete-bulk', [TaskController::class, 'deleteBulkBacklogTasks']);
+
         });
 
         // [Personal Notes]

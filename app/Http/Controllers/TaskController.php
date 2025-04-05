@@ -46,6 +46,8 @@ class TaskController extends Controller
             'tags' => 'nullable|string',
             'priority' => 'nullable|in:low,medium,high',
             'deadline' => 'nullable|date|after_or_equal:' . now()->format('Y-m-d'),
+            'duration_days' => 'nullable|integer|min:1|required_if:is_backlog,true',
+            'is_backlog' => 'nullable|boolean',
             'status' => 'nullable|boolean',
             'members' => 'required|array',
             'members.*' => 'exists:users,id',
@@ -95,15 +97,25 @@ class TaskController extends Controller
             return $this->error('The following users are not part of the team or project: ' . implode(', ', $invalidMemberNames), 422);
         }
 
-        $task = Task::create([
+        $taskData = [
             'name' => $request->name,
             'team_id' => $request->team_id,
             'description' => $request->description,
             'tags' => $request->tags,
             'priority' => $request->priority ?? 'medium',
-            'deadline' => $request->deadline,
-            'status' => $request->status ?? true,
-        ]);
+            'status' => $request->is_backlog ? Task::STATUS_BACKLOG : ($request->status ?? Task::STATUS_PENDING),
+            'is_backlog' => $request->is_backlog ?? false,
+        ];
+
+        if ($request->is_backlog) {
+            $taskData['duration_days'] = $request->duration_days;
+            $taskData['deadline'] = null;
+        } else {
+            $taskData['deadline'] = $request->deadline;
+            $taskData['duration_days'] = null;
+        }
+
+        $task = Task::create($taskData);
 
         if ($request->has('members')) {
             foreach ($request->members as $memberId) {
@@ -115,10 +127,9 @@ class TaskController extends Controller
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
-    
+
                 $member = User::find($memberId);
                 if ($member) {
-                    // Dispatch the job after the response is sent
                     dispatch(new SendTaskAssignedNotifications($member, $task))->afterResponse();
                 }
             }
@@ -150,13 +161,222 @@ class TaskController extends Controller
             ->performedOn($task)
             ->withProperties(['attributes' => $task->getAttributes()])
             ->event('created')
-            ->log('Task created');
+            ->log($task->is_backlog ? 'Backlog task created' : 'Task created');
 
         LogBatch::endBatch();
 
-        return $this->success(['task' => $task], 'Task created successfully.');
+        return $this->success(['task' => $task], $task->is_backlog ? 'Backlog task created successfully.' : 'Task created successfully.');
     }
 
+    // Add new method to publish backlog tasks
+    public function publishBulkBacklogTasks(Request $request)
+    {
+        $user = Auth::user();
+
+        $validator = Validator::make($request->all(), [
+            'task_ids' => 'required|array',
+            'task_ids.*' => 'exists:tasks,id',
+            'team_id' => 'required|exists:teams,id',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+
+        $team = Team::find($request->team_id);
+        if (!$team) {
+            return $this->error('Team not found.', 404);
+        }
+
+        // Check permissions
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id')
+            ->exists();
+
+        $isLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $team->id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->exists();
+
+        if (!$isManager && !$isLeader) {
+            return $this->error('Only the project manager or team leader can publish backlog tasks.', 403);
+        }
+
+        // Get the tasks before updating for logging
+        $tasks = Task::whereIn('id', $request->task_ids)
+            ->where('team_id', $team->id)
+            ->backlog()
+            ->get();
+
+        if ($tasks->isEmpty()) {
+            return $this->error('No valid backlog tasks found to publish.', 404);
+        }
+
+        // Publish the tasks
+        $publishedCount = Task::publishBulk($request->task_ids);
+
+        // Log the activity for each task
+        foreach ($tasks as $task) {
+            activity()
+                ->causedBy($user)
+                ->performedOn($task)
+                ->withProperties(['attributes' => $task->fresh()->getAttributes()])
+                ->event('updated')
+                ->log('Backlog task published in bulk');
+
+            // Notify members
+            $taskMembers = $task->members;
+            foreach ($taskMembers as $member) {
+                $notification = Notification::create([
+                    'user_id' => $member->id,
+                    'message' => "Backlog task published: {$task->name} is now active with deadline {$task->fresh()->deadline}.",
+                    'type' => 'info',
+                    'read' => false,
+                    'action_url' => NULL,
+                    'metadata' => [
+                        'task_id' => $task->id,
+                        'task_name' => $task->name,
+                        'team_id' => $task->team_id,
+                        'deadline' => $task->fresh()->deadline,
+                    ],
+                ]);
+                event(new NotificationSent($notification));
+            }
+        }
+
+        return $this->success([
+            'published_count' => $publishedCount,
+            'total_selected' => count($request->task_ids)
+        ], "Successfully published {$publishedCount} backlog tasks.");
+    }
+    public function deleteBulkBacklogTasks(Request $request)
+    {
+        $user = Auth::user();
+
+        $validator = Validator::make($request->all(), [
+            'task_ids' => 'required|array',
+            'task_ids.*' => 'exists:tasks,id',
+            'team_id' => 'required|exists:teams,id',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+
+        $team = Team::find($request->team_id);
+        if (!$team) {
+            return $this->error('Team not found.', 404);
+        }
+
+        // Check permissions
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id')
+            ->exists();
+
+        $isLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $team->id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->exists();
+
+        if (!$isManager && !$isLeader) {
+            return $this->error('Only the project manager or team leader can delete backlog tasks.', 403);
+        }
+
+        // Get the tasks before deleting for logging
+        $tasks = Task::whereIn('id', $request->task_ids)
+            ->where('team_id', $team->id)
+            ->backlog()
+            ->get();
+
+        if ($tasks->isEmpty()) {
+            return $this->error('No valid backlog tasks found to delete.', 404);
+        }
+
+        // Delete task members first
+        DB::table('task_members')->whereIn('task_id', $request->task_ids)->delete();
+
+        // Delete the tasks
+        $deletedCount = Task::whereIn('id', $request->task_ids)->delete();
+
+        // Log the activity for each task
+        foreach ($tasks as $task) {
+            activity()
+                ->causedBy($user)
+                ->performedOn($task)
+                ->withProperties(['attributes' => $task->getAttributes()])
+                ->event('deleted')
+                ->log('Backlog task deleted in bulk');
+        }
+
+        return $this->success([
+            'deleted_count' => $deletedCount,
+            'total_selected' => count($request->task_ids)
+        ], "Successfully deleted {$deletedCount} backlog tasks.");
+    }
+
+    // Add new method to get backlog tasks
+    public function getBacklogTasks($teamId)
+    {
+        $user = Auth::user();
+        $team = Team::find($teamId);
+
+        if (!$team) {
+            return $this->error('Team not found.', 404);
+        }
+
+        // Check permissions
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id')
+            ->exists();
+
+        $isPartOfTeam = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $teamId)
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->exists();
+
+        if (!$isManager && !$isPartOfTeam) {
+            return $this->error('You are not authorized to view this team\'s backlog.', 403);
+        }
+
+        $backlogTasks = Task::where('team_id', $teamId)
+            ->backlog()
+            ->get();
+
+        $formattedTasks = $backlogTasks->map(function ($task) {
+            return [
+                'id' => $task->id,
+                'name' => $task->name,
+                'description' => $task->description,
+                'tags' => $task->tags,
+                'priority' => $task->priority,
+                'duration_days' => $task->duration_days,
+                'status' => $task->status_text,
+                'is_backlog' => $task->is_backlog,
+                'created_at' => $task->created_at,
+                'members' => $task->members->map(function ($member) {
+                    return [
+                        'id' => $member->id,
+                        'name' => $member->name,
+                        'color' => $this->getMemberColor($member->id),
+                    ];
+                }),
+            ];
+        });
+
+        return $this->success(['backlog_tasks' => $formattedTasks], 'Backlog tasks retrieved successfully.');
+    }
 
     // Update Task (Team Leader & manager)
     public function updateTask(Request $request, $taskId)
@@ -372,7 +592,7 @@ class TaskController extends Controller
         }
 
         // Get tasks for the team
-        $tasks = Task::where('team_id', $teamId)->get();
+        $tasks = Task::where('team_id', $teamId)->active()->get();
 
         // Format the response
         $formattedTasks = $tasks->map(function ($task) {
@@ -430,7 +650,7 @@ class TaskController extends Controller
         }
 
         // Get all tasks in these teams
-        $tasks = Task::whereIn('team_id', $teamIds)->get();
+        $tasks = Task::whereIn('team_id', $teamIds)->active()->get();
 
         // Format the response
         $formattedTasks = $tasks->map(function ($task) use ($user) {

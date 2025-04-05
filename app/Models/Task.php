@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Task extends Model
 {
@@ -12,16 +13,19 @@ class Task extends Model
     protected $table = 'tasks';
 
     protected $casts = [
-        'deadline' => 'datetime', // Cast the deadline to a Carbon instance
+        'deadline' => 'datetime',
+        'published_at' => 'datetime',
+        'is_backlog' => 'boolean',
     ];
 
     // Define status constants as numbers
-    const STATUS_PENDING = 1;      // Task has been created but not yet started
-    const STATUS_IN_PROGRESS = 2;  // Task is currently being worked on
-    const STATUS_COMPLETED = 3;    // Task has been finished
-    const STATUS_CANCELLED = 4;    // Task has been cancelled
-    const STATUS_ON_HOLD = 5;      // Task is temporarily paused
-    const STATUS_IN_REVIEW = 6;    // Task is under review
+    const STATUS_PENDING = 1;
+    const STATUS_IN_PROGRESS = 2;
+    const STATUS_COMPLETED = 3;
+    const STATUS_CANCELLED = 4;
+    const STATUS_ON_HOLD = 5;
+    const STATUS_IN_REVIEW = 6;
+    const STATUS_BACKLOG = 7; // New status for backlog items
 
     // Map status numbers to their corresponding text labels
     public static $statusTexts = [
@@ -31,6 +35,7 @@ class Task extends Model
         self::STATUS_CANCELLED => 'cancelled',
         self::STATUS_ON_HOLD => 'on_hold',
         self::STATUS_IN_REVIEW => 'in_review',
+        self::STATUS_BACKLOG => 'backlog',
     ];
 
     protected $fillable = [
@@ -40,10 +45,15 @@ class Task extends Model
         'tags',
         'priority',
         'deadline',
-        'status', // Status is stored as a number
+        'duration_days',
+        'published_at',
+        'is_backlog',
+        'status',
         'created_at',
         'updated_at',
     ];
+
+    protected $appends = ['status_text', 'is_overdue'];
 
     public function project()
     {
@@ -97,6 +107,42 @@ class Task extends Model
                 self::STATUS_PENDING,
                 self::STATUS_IN_PROGRESS,
                 self::STATUS_IN_REVIEW
+            ]);
+    }
+
+    /**
+     * Scope a query to only include backlog tasks.
+     */
+    public function scopeBacklog($query)
+    {
+        return $query->where('is_backlog', true)
+            ->orWhere('status', self::STATUS_BACKLOG);
+    }
+
+    /**
+     * Scope a query to only include active (non-backlog) tasks.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_backlog', false)
+            ->where('status', '!=', self::STATUS_BACKLOG);
+    }
+
+    /**
+     * Publish a backlog task to make it active.
+     */
+    public static function publishBulk(array $taskIds)
+    {
+        return static::whereIn('id', $taskIds)
+            ->where(function ($query) {
+                $query->where('is_backlog', true)
+                    ->orWhere('status', self::STATUS_BACKLOG);
+            })
+            ->update([
+                'is_backlog' => false,
+                'status' => self::STATUS_PENDING,
+                'published_at' => now(),
+                'deadline' => DB::raw('CASE WHEN duration_days > 0 THEN DATE_ADD(NOW(), INTERVAL duration_days DAY) ELSE NULL END'),
             ]);
     }
 }
