@@ -196,15 +196,29 @@ class DashboardController extends Controller
      */
     protected function getTasksByPriority(User $user)
     {
-        return TaskMember::where('user_id', $user->id)
+        // Get counts from database
+        $priorityCounts = TaskMember::where('user_id', $user->id)
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
             ->whereNotIn('tasks.status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED])
             ->select('tasks.priority', DB::raw('count(*) as count'))
             ->groupBy('tasks.priority')
             ->pluck('count', 'priority')
             ->toArray();
+    
+        $allPriorities = [
+            'low' => 0,
+            'medium' => 0,
+            'high' => 0
+        ];
+    
+        foreach ($priorityCounts as $priority => $count) {
+            if (array_key_exists($priority, $allPriorities)) {
+                $allPriorities[$priority] = $count;
+            }
+        }
+    
+        return $allPriorities;
     }
-
     /**
      * Get workload distribution by project
      */
