@@ -14,6 +14,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\welcomeController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\MaterialController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ModelTestController;
 use App\Http\Controllers\WorkspaceController;
 use App\Http\Controllers\NotificationController;
@@ -176,6 +177,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/{notificationId}/read', [NotificationController::class, 'markAsRead']); // Mark as read
             Route::post('/mark-all-as-read', [NotificationController::class, 'markAllAsRead']); // Mark all as read
             Route::delete('/{notificationId}', [NotificationController::class, 'destroy']); // Delete notification
+        });
+
+        Route::prefix('dashboard')->group(function () {
+            Route::get('/general', [DashboardController::class, 'getGeneralDashboard']);
         });
     });
 });
