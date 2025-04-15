@@ -32,7 +32,7 @@ class DashboardController extends Controller
         // 3. Get task completion rate over last year (monthly)
         $completionTrend = $this->getCompletionTrend($user);
 
-        // 4. Get tasks by priority
+        // 4. Get tasks by priority (excluding completed and cancelled)
         $tasksByPriority = $this->getTasksByPriority($user);
 
         // 5. Get workload distribution by project
@@ -57,13 +57,13 @@ class DashboardController extends Controller
                 'current' => $projectsData['current'],
                 'previous' => $projectsData['previous'],
                 'change_percentage' => $projectsData['change_percentage'],
-                'trend' => $projectsData['trend'], // 'up' or 'down'
+                'trend' => $projectsData['trend'],
             ],
             'teams_count' => [
                 'current' => $teamsData['current'],
                 'previous' => $teamsData['previous'],
                 'change_percentage' => $teamsData['change_percentage'],
-                'trend' => $teamsData['trend'], // 'up' or 'down'
+                'trend' => $teamsData['trend'],
             ],
             'progress_percentage' => $progressPercentage,
             'completion_trend' => $completionTrend,
@@ -77,20 +77,18 @@ class DashboardController extends Controller
      */
     protected function getProjectsCountWithChange(User $user)
     {
-        $currentMonthStart = Carbon::now()->startOfMonth();
-        $currentMonthEnd = Carbon::now()->endOfMonth();
-        $previousMonthStart = Carbon::now()->subMonth()->startOfMonth();
-        $previousMonthEnd = Carbon::now()->subMonth()->endOfMonth();
+        // Current count - all projects user has access to (manager or member)
+        $currentCount = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->distinct('project_id')
+            ->count('project_id');
 
-        // Current month count
-        $currentCount = $user->projects()
-            ->whereBetween('project_role_user.created_at', [$currentMonthStart, $currentMonthEnd])
-            ->count();
-
-        // Previous month count
-        $previousCount = $user->projects()
-            ->whereBetween('project_role_user.created_at', [$previousMonthStart, $previousMonthEnd])
-            ->count();
+        // Previous month count - projects user had access to at the end of last month
+        $previousCount = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('created_at', '<=', Carbon::now()->subMonth()->endOfMonth())
+            ->distinct('project_id')
+            ->count('project_id');
 
         return $this->calculateChangeData($currentCount, $previousCount);
     }
@@ -100,20 +98,20 @@ class DashboardController extends Controller
      */
     protected function getTeamsCountWithChange(User $user)
     {
-        $currentMonthStart = Carbon::now()->startOfMonth();
-        $currentMonthEnd = Carbon::now()->endOfMonth();
-        $previousMonthStart = Carbon::now()->subMonth()->startOfMonth();
-        $previousMonthEnd = Carbon::now()->subMonth()->endOfMonth();
+        // Current count - all teams user has access to (excluding manager roles where team_id is null)
+        $currentCount = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->whereNotNull('team_id')
+            ->distinct('team_id')
+            ->count('team_id');
 
-        // Current month count
-        $currentCount = $user->teams()
-            ->whereBetween('project_role_user.created_at', [$currentMonthStart, $currentMonthEnd])
-            ->count();
-
-        // Previous month count
-        $previousCount = $user->teams()
-            ->whereBetween('project_role_user.created_at', [$previousMonthStart, $previousMonthEnd])
-            ->count();
+        // Previous month count - teams user had access to at the end of last month
+        $previousCount = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->whereNotNull('team_id')
+            ->where('created_at', '<=', Carbon::now()->subMonth()->endOfMonth())
+            ->distinct('team_id')
+            ->count('team_id');
 
         return $this->calculateChangeData($currentCount, $previousCount);
     }
@@ -135,7 +133,7 @@ class DashboardController extends Controller
         return [
             'current' => $current,
             'previous' => $previous,
-            'change_percentage' => abs($changePercentage), // Absolute value
+            'change_percentage' => abs($changePercentage),
             'trend' => $trend,
         ];
     }
@@ -194,12 +192,13 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get tasks grouped by priority
+     * Get tasks grouped by priority (excluding completed and cancelled)
      */
     protected function getTasksByPriority(User $user)
     {
         return TaskMember::where('user_id', $user->id)
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
+            ->whereNotIn('tasks.status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED])
             ->select('tasks.priority', DB::raw('count(*) as count'))
             ->groupBy('tasks.priority')
             ->pluck('count', 'priority')
