@@ -66,9 +66,15 @@ class DashboardController extends Controller
                 'trend' => $teamsData['trend'],
             ],
             'progress_percentage' => $progressPercentage,
-            'completion_trend' => $completionTrend,
+            'completion_trend' => [
+                'labels' => $completionTrend['labels'],
+                'values' => $completionTrend['values']
+            ],
             'tasks_by_priority' => $tasksByPriority,
-            'workload_by_project' => $workloadByProject,
+            'workload_by_project' => [
+                'labels' => $workloadByProject['labels'],
+                'values' => $workloadByProject['values']
+            ],
         ]);
     }
 
@@ -158,7 +164,7 @@ class DashboardController extends Controller
     {
         $startDate = now()->subYear()->startOfMonth();
         $endDate = now()->endOfMonth();
-
+    
         $completionData = TaskMember::where('user_id', $user->id)
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
             ->where('tasks.status', Task::STATUS_COMPLETED)
@@ -172,23 +178,32 @@ class DashboardController extends Controller
             ->orderBy('year')
             ->orderBy('month')
             ->get();
-
-        // Format the data for chart (ensure all months are represented)
-        $trendData = [];
+    
+        // Format the data for chart
+        $labels = [];
+        $values = [];
         $currentDate = $startDate->copy();
-
+    
         while ($currentDate <= $endDate) {
             $monthKey = $currentDate->format('Y-m');
-            $trendData[$monthKey] = 0;
+            $labels[] = $monthKey;
+            $values[] = 0; // Default value
             $currentDate->addMonth();
         }
-
+    
+        // Fill in actual values
         foreach ($completionData as $data) {
             $monthKey = sprintf('%04d-%02d', $data->year, $data->month);
-            $trendData[$monthKey] = $data->count;
+            $index = array_search($monthKey, $labels);
+            if ($index !== false) {
+                $values[$index] = $data->count;
+            }
         }
-
-        return $trendData;
+    
+        return [
+            'labels' => $labels,
+            'values' => $values
+        ];
     }
 
     /**
@@ -224,7 +239,7 @@ class DashboardController extends Controller
      */
     protected function getWorkloadByProject(User $user)
     {
-        return TaskMember::where('user_id', $user->id)
+        $projects = TaskMember::where('user_id', $user->id)
             ->join('projects', 'task_members.project_id', '=', 'projects.id')
             ->select(
                 'projects.id',
@@ -233,14 +248,19 @@ class DashboardController extends Controller
             )
             ->groupBy('projects.id', 'projects.name')
             ->orderByDesc('task_count')
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'project_id' => $item->id,
-                    'project_name' => $item->name,
-                    'task_count' => $item->task_count,
-                ];
-            })
-            ->toArray();
+            ->get();
+    
+        $labels = [];
+        $values = [];
+    
+        foreach ($projects as $project) {
+            $labels[] = $project->name;
+            $values[] = $project->task_count;
+        }
+    
+        return [
+            'labels' => $labels,
+            'values' => $values
+        ];
     }
 }
