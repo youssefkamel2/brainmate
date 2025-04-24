@@ -84,7 +84,7 @@ class DashboardController extends Controller
             return $this->getManagerProjectDashboard($user, $project);
         } else {
             // Member/Leader dashboard
-            return $this->erro('Not authraized to view this data.', 403);
+            return $this->error('Not authraized to view this data.', 403);
         }
     }
 
