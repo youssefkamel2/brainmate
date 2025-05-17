@@ -107,7 +107,6 @@ Route::prefix('v1')->group(function () {
             Route::post('/backlog/publish-bulk', [TaskController::class, 'publishBulkBacklogTasks']);
             Route::post('/backlog/delete-bulk', [TaskController::class, 'deleteBulkBacklogTasks']);
             Route::post('/check-deadlines', [TaskController::class, 'checkApproachingDeadlines']);
-
         });
 
         // [Personal Notes]
@@ -183,12 +182,12 @@ Route::prefix('v1')->group(function () {
         Route::prefix('dashboard')->group(function () {
             Route::get('/general', [DashboardController::class, 'getGeneralDashboard']);
             Route::get('/project/{project}', [DashboardController::class, 'getProjectDashboard']);
+            Route::get('/team/member/{team}', [DashboardController::class, 'getTeamMemberDashboard']);
+            Route::get('/team/leader/{team}', [DashboardController::class, 'getTeamLeaderDashboard']);
         });
-        
     });
 
 
     Route::post('/ai/generate', [AIController::class, 'generateTasks']);
     Route::get('/ai/health', [AIController::class, 'checkHealth']);
-    
 });

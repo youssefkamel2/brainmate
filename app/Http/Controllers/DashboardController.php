@@ -423,7 +423,382 @@ class DashboardController extends Controller
     /**
      * Get task counts by status for the user (optionally filtered by project)
      */
-    protected function getUserTaskCounts(User $user, $projectId = null)
+    // protected function getUserTaskCounts(User $user, $projectId = null)
+    // {
+    //     $query = TaskMember::where('user_id', $user->id)
+    //         ->join('tasks', 'task_members.task_id', '=', 'tasks.id');
+
+    //     if ($projectId) {
+    //         $query->join('teams', 'tasks.team_id', '=', 'teams.id')
+    //             ->where('teams.project_id', $projectId);
+    //     }
+
+    //     return $query->select('tasks.status', DB::raw('count(*) as count'))
+    //         ->groupBy('tasks.status')
+    //         ->pluck('count', 'status')
+    //         ->toArray();
+    // }
+
+    /**
+     * Get completion trend (tasks completed per month for last year)
+     */
+    // protected function getCompletionTrend(User $user)
+    // {
+    //     $startDate = now()->subYear()->startOfMonth();
+    //     $endDate = now()->endOfMonth();
+
+    //     $completionData = TaskMember::where('user_id', $user->id)
+    //         ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
+    //         ->where('tasks.status', Task::STATUS_COMPLETED)
+    //         ->whereBetween('tasks.updated_at', [$startDate, $endDate])
+    //         ->select(
+    //             DB::raw('YEAR(tasks.updated_at) as year'),
+    //             DB::raw('MONTH(tasks.updated_at) as month'),
+    //             DB::raw('COUNT(*) as count')
+    //         )
+    //         ->groupBy('year', 'month')
+    //         ->orderBy('year')
+    //         ->orderBy('month')
+    //         ->get();
+
+    //     // Format the data for chart
+    //     $labels = [];
+    //     $values = [];
+    //     $currentDate = $startDate->copy();
+
+    //     while ($currentDate <= $endDate) {
+    //         $monthKey = $currentDate->format('Y-m');
+    //         $labels[] = $monthKey;
+    //         $values[] = 0; // Default value
+    //         $currentDate->addMonth();
+    //     }
+
+    //     // Fill in actual values
+    //     foreach ($completionData as $data) {
+    //         $monthKey = sprintf('%04d-%02d', $data->year, $data->month);
+    //         $index = array_search($monthKey, $labels);
+    //         if ($index !== false) {
+    //             $values[$index] = $data->count;
+    //         }
+    //     }
+
+    //     return [
+    //         'labels' => $labels,
+    //         'values' => $values
+    //     ];
+    // }
+
+    /**
+     * Get tasks grouped by priority (excluding completed and cancelled, optionally filtered by project)
+     */
+    // protected function getTasksByPriority(User $user, $projectId = null)
+    // {
+    //     $query = TaskMember::where('user_id', $user->id)
+    //         ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
+    //         ->whereNotIn('tasks.status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED]);
+
+    //     if ($projectId) {
+    //         $query->join('teams', 'tasks.team_id', '=', 'teams.id')
+    //             ->where('teams.project_id', $projectId);
+    //     }
+
+    //     $priorityCounts = $query->select('tasks.priority', DB::raw('count(*) as count'))
+    //         ->groupBy('tasks.priority')
+    //         ->pluck('count', 'priority')
+    //         ->toArray();
+
+    //     $allPriorities = [
+    //         'low' => 0,
+    //         'medium' => 0,
+    //         'high' => 0
+    //     ];
+
+    //     foreach ($priorityCounts as $priority => $count) {
+    //         if (array_key_exists($priority, $allPriorities)) {
+    //             $allPriorities[$priority] = $count;
+    //         }
+    //     }
+
+    //     return $allPriorities;
+    // }
+
+    /**
+     * Get workload distribution by project
+     */
+    protected function getWorkloadByProject(User $user)
+    {
+        $projects = TaskMember::where('user_id', $user->id)
+            ->join('projects', 'task_members.project_id', '=', 'projects.id')
+            ->select(
+                'projects.id',
+                'projects.name',
+                DB::raw('count(*) as task_count')
+            )
+            ->groupBy('projects.id', 'projects.name')
+            ->orderByDesc('task_count')
+            ->get();
+
+        $labels = [];
+        $values = [];
+
+        foreach ($projects as $project) {
+            $labels[] = $project->name;
+            $values[] = $project->task_count;
+        }
+
+        return [
+            'labels' => $labels,
+            'values' => $values
+        ];
+    }
+
+
+
+
+
+
+    /**
+     * Get team dashboard data for a member
+     */
+    public function getTeamMemberDashboard(Request $request, $teamId)
+    {
+        $user = $request->user();
+        $team = Team::find($teamId);
+
+        if (!$team) {
+            return $this->error('Team Not Found.', 404);
+        }
+
+        // Check if user is a member of this team
+        $isMember = $user->roles()
+            ->where('team_id', $team->id)
+            ->exists();
+
+        if (!$isMember) {
+            return $this->error('Not authorized to view this data.', 403);
+        }
+
+        // Get user role in team
+        $role = $this->getUserTeamRole($user, $team);
+
+        // 1. Get overdue and at risk tasks for current user
+        $taskAlerts = $this->getUserTaskAlerts($user, $team->id);
+
+        // 2. Get total tasks duration per month for current user
+        $monthlyDuration = $this->getUserMonthlyTaskDuration($user, $team->id);
+
+        // 3. Get average time to complete tasks for current user
+        $avgCompletionTime = $this->getUserAvgCompletionTime($user, $team->id);
+
+        // 4. Get team name and user role
+        $teamInfo = [
+            'name' => $team->name,
+            'role' => $role
+        ];
+
+        // 5. Get task counts by status for current user
+        $taskCounts = $this->getUserTaskCounts($user, null, $team->id);
+
+        // 6. Get task breakdown by priority for current user
+        $tasksByPriority = $this->getTasksByPriority($user, null, $team->id);
+
+        // 7. Get task completion rate over year for current user
+        $completionTrend = $this->getCompletionTrend($user, null, $team->id);
+
+        return $this->success([
+            'task_alerts' => $taskAlerts,
+            'monthly_duration' => $monthlyDuration,
+            'avg_completion_time' => $avgCompletionTime,
+            'team_info' => $teamInfo,
+            'task_counts' => [
+                'pending' => $taskCounts[Task::STATUS_PENDING] ?? 0,
+                'in_progress' => $taskCounts[Task::STATUS_IN_PROGRESS] ?? 0,
+                'completed' => $taskCounts[Task::STATUS_COMPLETED] ?? 0,
+                'cancelled' => $taskCounts[Task::STATUS_CANCELLED] ?? 0,
+                'on_hold' => $taskCounts[Task::STATUS_ON_HOLD] ?? 0,
+                'in_review' => $taskCounts[Task::STATUS_IN_REVIEW] ?? 0,
+                'total' => array_sum($taskCounts),
+            ],
+            'tasks_by_priority' => $tasksByPriority,
+            'completion_trend' => $completionTrend
+        ]);
+    }
+
+    /**
+     * Get team dashboard data for a leader/manager
+     */
+    public function getTeamLeaderDashboard(Request $request, $teamId)
+    {
+        $user = $request->user();
+        $team = Team::find($teamId);
+
+        if (!$team) {
+            return $this->error('Team Not Found.', 404);
+        }
+
+        // Check if user is a leader or manager of this team
+        $isLeaderOrManager = $user->roles()
+            ->where('team_id', $team->id)
+            ->whereIn('role_id', [Role::ROLE_LEADER, Role::ROLE_MANAGER])
+            ->exists();
+
+        if (!$isLeaderOrManager) {
+            return $this->error('Not authorized to view this data.', 403);
+        }
+
+        // Get user role in team
+        $role = $this->getUserTeamRole($user, $team);
+
+        // 1. Get overdue and at risk tasks for whole team
+        $taskAlerts = $this->getTeamTaskAlerts($team->id);
+
+        // 2. Get workload distribution across team members
+        $workloadDistribution = $this->getTeamWorkloadDistribution($team->id);
+
+        // 3. Get team progress percentage
+        $teamProgress = $this->getTeamProgress($team->id);
+
+        // 4. Get average time to complete tasks for whole team
+        $avgCompletionTime = $this->getTeamAvgCompletionTime($team->id);
+
+        // 5. Get team name and user role
+        $teamInfo = [
+            'name' => $team->name,
+            'role' => $role
+        ];
+
+        // 6. Get task breakdown by priority for whole team
+        $tasksByPriority = $this->getTeamTasksByPriority($team->id);
+
+        // 7. Get task completion rate over year for whole team
+        $completionTrend = $this->getTeamCompletionTrend($team->id);
+
+        return $this->success([
+            'task_alerts' => $taskAlerts,
+            'workload_distribution' => $workloadDistribution,
+            'team_progress' => $teamProgress,
+            'avg_completion_time' => $avgCompletionTime,
+            'team_info' => $teamInfo,
+            'tasks_by_priority' => $tasksByPriority,
+            'completion_trend' => $completionTrend
+        ]);
+    }
+
+    /**
+     * Get user role in team
+     */
+    protected function getUserTeamRole(User $user, Team $team)
+    {
+        $role = $user->roles()
+            ->where('team_id', $team->id)
+            ->first();
+
+        if ($role) {
+            return $role->name; // Assuming Role model has a 'name' attribute
+        }
+
+        return 'member';
+    }
+
+    /**
+     * Get overdue and at risk tasks for user in team
+     */
+    protected function getUserTaskAlerts(User $user, $teamId)
+    {
+        // Overdue tasks
+        $overdue = TaskMember::where('user_id', $user->id)
+            ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
+            ->where('tasks.team_id', $teamId)
+            ->where('tasks.deadline', '<', now())
+            ->whereIn('tasks.status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
+            ->count();
+
+        // At risk tasks (approaching deadline - within 3 days)
+        $atRisk = TaskMember::where('user_id', $user->id)
+            ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
+            ->where('tasks.team_id', $teamId)
+            ->whereBetween('tasks.deadline', [now(), now()->addDays(3)])
+            ->whereIn('tasks.status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
+            ->count();
+
+        return [
+            'overdue' => $overdue,
+            'at_risk' => $atRisk
+        ];
+    }
+
+    /**
+     * Get total tasks duration per month for user in team
+     */
+    protected function getUserMonthlyTaskDuration(User $user, $teamId)
+    {
+        $startDate = now()->subYear()->startOfMonth();
+        $endDate = now()->endOfMonth();
+
+        $durationData = TaskMember::where('user_id', $user->id)
+            ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
+            ->where('tasks.team_id', $teamId)
+            ->whereBetween('tasks.created_at', [$startDate, $endDate])
+            ->select(
+                DB::raw('YEAR(tasks.created_at) as year'),
+                DB::raw('MONTH(tasks.created_at) as month'),
+                DB::raw('SUM(tasks.estimated_duration) as total_duration')
+            )
+            ->groupBy('year', 'month')
+            ->orderBy('year')
+            ->orderBy('month')
+            ->get();
+
+        // Format the data for chart
+        $labels = [];
+        $values = [];
+        $currentDate = $startDate->copy();
+
+        while ($currentDate <= $endDate) {
+            $monthKey = $currentDate->format('Y-m');
+            $labels[] = $monthKey;
+            $values[] = 0; // Default value
+            $currentDate->addMonth();
+        }
+
+        // Fill in actual values
+        foreach ($durationData as $data) {
+            $monthKey = sprintf('%04d-%02d', $data->year, $data->month);
+            $index = array_search($monthKey, $labels);
+            if ($index !== false) {
+                $values[$index] = (int)$data->total_duration;
+            }
+        }
+
+        return [
+            'labels' => $labels,
+            'values' => $values
+        ];
+    }
+
+    /**
+     * Get average time to complete tasks for user in team
+     */
+    protected function getUserAvgCompletionTime(User $user, $teamId)
+    {
+        $completedTasks = TaskMember::where('user_id', $user->id)
+            ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
+            ->where('tasks.team_id', $teamId)
+            ->where('tasks.status', Task::STATUS_COMPLETED)
+            ->whereNotNull('tasks.completed_at')
+            ->whereNotNull('tasks.started_at')
+            ->select(
+                DB::raw('AVG(TIMESTAMPDIFF(HOUR, tasks.started_at, tasks.completed_at)) as avg_hours')
+            )
+            ->first();
+
+        return $completedTasks->avg_hours ?? 0;
+    }
+
+    /**
+     * Get task counts by status for the user (optionally filtered by project or team)
+     */
+    protected function getUserTaskCounts(User $user, $projectId = null, $teamId = null)
     {
         $query = TaskMember::where('user_id', $user->id)
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id');
@@ -431,6 +806,10 @@ class DashboardController extends Controller
         if ($projectId) {
             $query->join('teams', 'tasks.team_id', '=', 'teams.id')
                 ->where('teams.project_id', $projectId);
+        }
+
+        if ($teamId) {
+            $query->where('tasks.team_id', $teamId);
         }
 
         return $query->select('tasks.status', DB::raw('count(*) as count'))
@@ -441,21 +820,32 @@ class DashboardController extends Controller
 
     /**
      * Get completion trend (tasks completed per month for last year)
+     * Optionally filtered by project or team
      */
-    protected function getCompletionTrend(User $user)
+    protected function getCompletionTrend(User $user, $projectId = null, $teamId = null)
     {
         $startDate = now()->subYear()->startOfMonth();
         $endDate = now()->endOfMonth();
 
-        $completionData = TaskMember::where('user_id', $user->id)
+        $query = TaskMember::where('user_id', $user->id)
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
             ->where('tasks.status', Task::STATUS_COMPLETED)
-            ->whereBetween('tasks.updated_at', [$startDate, $endDate])
-            ->select(
-                DB::raw('YEAR(tasks.updated_at) as year'),
-                DB::raw('MONTH(tasks.updated_at) as month'),
-                DB::raw('COUNT(*) as count')
-            )
+            ->whereBetween('tasks.updated_at', [$startDate, $endDate]);
+
+        if ($projectId) {
+            $query->join('teams', 'tasks.team_id', '=', 'teams.id')
+                ->where('teams.project_id', $projectId);
+        }
+
+        if ($teamId) {
+            $query->where('tasks.team_id', $teamId);
+        }
+
+        $completionData = $query->select(
+            DB::raw('YEAR(tasks.updated_at) as year'),
+            DB::raw('MONTH(tasks.updated_at) as month'),
+            DB::raw('COUNT(*) as count')
+        )
             ->groupBy('year', 'month')
             ->orderBy('year')
             ->orderBy('month')
@@ -489,9 +879,10 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get tasks grouped by priority (excluding completed and cancelled, optionally filtered by project)
+     * Get tasks grouped by priority (excluding completed and cancelled)
+     * Optionally filtered by project or team
      */
-    protected function getTasksByPriority(User $user, $projectId = null)
+    protected function getTasksByPriority(User $user, $projectId = null, $teamId = null)
     {
         $query = TaskMember::where('user_id', $user->id)
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
@@ -500,6 +891,10 @@ class DashboardController extends Controller
         if ($projectId) {
             $query->join('teams', 'tasks.team_id', '=', 'teams.id')
                 ->where('teams.project_id', $projectId);
+        }
+
+        if ($teamId) {
+            $query->where('tasks.team_id', $teamId);
         }
 
         $priorityCounts = $query->select('tasks.priority', DB::raw('count(*) as count'))
@@ -523,27 +918,158 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get workload distribution by project
+     * Get overdue and at risk tasks for whole team
      */
-    protected function getWorkloadByProject(User $user)
+    protected function getTeamTaskAlerts($teamId)
     {
-        $projects = TaskMember::where('user_id', $user->id)
-            ->join('projects', 'task_members.project_id', '=', 'projects.id')
+        // Overdue tasks
+        $overdue = Task::where('team_id', $teamId)
+            ->where('deadline', '<', now())
+            ->whereIn('status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
+            ->count();
+
+        // At risk tasks (approaching deadline - within 3 days)
+        $atRisk = Task::where('team_id', $teamId)
+            ->whereBetween('deadline', [now(), now()->addDays(3)])
+            ->whereIn('status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
+            ->count();
+
+        return [
+            'overdue' => $overdue,
+            'at_risk' => $atRisk
+        ];
+    }
+
+    /**
+     * Get workload distribution across team members
+     */
+    protected function getTeamWorkloadDistribution($teamId)
+    {
+        $members = TaskMember::join('tasks', 'task_members.task_id', '=', 'tasks.id')
+            ->join('users', 'task_members.user_id', '=', 'users.id')
+            ->where('tasks.team_id', $teamId)
+            ->whereNotIn('tasks.status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED])
             ->select(
-                'projects.id',
-                'projects.name',
+                'users.id',
+                'users.name',
                 DB::raw('count(*) as task_count')
             )
-            ->groupBy('projects.id', 'projects.name')
-            ->orderByDesc('task_count')
+            ->groupBy('users.id', 'users.name')
             ->get();
 
         $labels = [];
         $values = [];
 
-        foreach ($projects as $project) {
-            $labels[] = $project->name;
-            $values[] = $project->task_count;
+        foreach ($members as $member) {
+            $labels[] = $member->name;
+            $values[] = $member->task_count;
+        }
+
+        return [
+            'labels' => $labels,
+            'values' => $values
+        ];
+    }
+
+    /**
+     * Get team progress percentage
+     */
+    protected function getTeamProgress($teamId)
+    {
+        $completedTasks = Task::where('team_id', $teamId)
+            ->where('status', Task::STATUS_COMPLETED)
+            ->count();
+
+        $totalTasks = Task::where('team_id', $teamId)
+            ->count();
+
+        return $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0;
+    }
+
+    /**
+     * Get average time to complete tasks for whole team
+     */
+    protected function getTeamAvgCompletionTime($teamId)
+    {
+        $completedTasks = Task::where('team_id', $teamId)
+            ->where('status', Task::STATUS_COMPLETED)
+            ->whereNotNull('completed_at')
+            ->whereNotNull('started_at')
+            ->select(
+                DB::raw('AVG(TIMESTAMPDIFF(HOUR, started_at, completed_at)) as avg_hours')
+            )
+            ->first();
+
+        return $completedTasks->avg_hours ?? 0;
+    }
+
+    /**
+     * Get task breakdown by priority for whole team
+     */
+    protected function getTeamTasksByPriority($teamId)
+    {
+        $priorityCounts = Task::where('team_id', $teamId)
+            ->whereNotIn('status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED])
+            ->select('priority', DB::raw('count(*) as count'))
+            ->groupBy('priority')
+            ->pluck('count', 'priority')
+            ->toArray();
+
+        $allPriorities = [
+            'low' => 0,
+            'medium' => 0,
+            'high' => 0
+        ];
+
+        foreach ($priorityCounts as $priority => $count) {
+            if (array_key_exists($priority, $allPriorities)) {
+                $allPriorities[$priority] = $count;
+            }
+        }
+
+        return $allPriorities;
+    }
+
+    /**
+     * Get task completion rate over year for whole team
+     */
+    protected function getTeamCompletionTrend($teamId)
+    {
+        $startDate = now()->subYear()->startOfMonth();
+        $endDate = now()->endOfMonth();
+
+        $completionData = Task::where('team_id', $teamId)
+            ->where('status', Task::STATUS_COMPLETED)
+            ->whereBetween('updated_at', [$startDate, $endDate])
+            ->select(
+                DB::raw('YEAR(updated_at) as year'),
+                DB::raw('MONTH(updated_at) as month'),
+                DB::raw('COUNT(*) as count')
+            )
+            ->groupBy('year', 'month')
+            ->orderBy('year')
+            ->orderBy('month')
+            ->get();
+
+        // Format the data for chart
+        $labels = [];
+        $values = [];
+        $currentDate = $startDate->copy();
+
+        while ($currentDate <= $endDate) {
+            $monthKey = $currentDate->format('Y-m');
+            $labels[] = $monthKey;
+            $values[] = 0; // Default value
+            $currentDate->addMonth();
+        }
+
+        // Fill in actual values
+        foreach ($completionData as $data) {
+            $monthKey = sprintf('%04d-%02d', $data->year, $data->month);
+            $index = array_search($monthKey, $labels);
+            if ($index !== false) {
+                $values[$index] = $data->count;
+            }
         }
 
         return [
