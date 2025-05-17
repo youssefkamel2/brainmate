@@ -746,7 +746,15 @@ class DashboardController extends Controller
             ->select(
                 DB::raw('YEAR(tasks.created_at) as year'),
                 DB::raw('MONTH(tasks.created_at) as month'),
-                DB::raw('SUM(COALESCE(tasks.duration_days, 1)) as total_duration')
+                DB::raw('SUM(
+                CASE 
+                    WHEN tasks.duration_days IS NULL AND tasks.deadline IS NOT NULL 
+                    THEN DATEDIFF(tasks.deadline, tasks.created_at)
+                    WHEN tasks.duration_days IS NULL 
+                    THEN 1
+                    ELSE tasks.duration_days
+                END
+            ) as total_duration')
             )
             ->groupBy('year', 'month')
             ->orderBy('year')
@@ -776,7 +784,8 @@ class DashboardController extends Controller
 
         return [
             'labels' => $labels,
-            'values' => $values
+            'values' => $values,
+            'unit' => 'days' // Make it clear the values represent days
         ];
     }
 
