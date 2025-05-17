@@ -622,64 +622,69 @@ class TaskController extends Controller
         return $this->success([], 'Attachment removed successfully.');
     }
 
+
     public function getTeamTasks($teamId)
-    {
-        // Get the authenticated user
-        $user = Auth::user();
+{
+    // Get the authenticated user
+    $user = Auth::user();
 
-        // Check if the team exists
-        $team = Team::find($teamId);
-        if (!$team) {
-            return $this->error('Team not found.', 404);
-        }
-
-        // Check if the user is the manager of the project or part of the team (member or leader)
-        $isManager = DB::table('project_role_user')
-            ->where('user_id', $user->id)
-            ->where('project_id', $team->project_id)
-            ->where('role_id', Role::ROLE_MANAGER)
-            ->whereNull('team_id') // Manager has team_id = null
-            ->exists();
-
-        $isPartOfTeam = DB::table('project_role_user')
-            ->where('user_id', $user->id)
-            ->where('team_id', $teamId)
-            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
-            ->exists();
-
-        if (!$isManager && !$isPartOfTeam) {
-            return $this->error('You are not authorized to view this team\'s tasks.', 403);
-        }
-
-        // Get tasks for the team
-        $tasks = Task::where('team_id', $teamId)->active()->get();
-
-        // Format the response
-        $formattedTasks = $tasks->map(function ($task) {
-            return [
-                'id' => $task->id,
-                'name' => $task->name,
-                'description' => $task->description,
-                'tags' => $task->tags,
-                'priority' => $task->priority,
-                'deadline' => $task->deadline,
-                'status' => $task->status,
-                'is_overdue' => $task->is_overdue, // Add the overdue flag
-                'team_id' => $task->team_id,
-                'created_at' => $task->created_at,
-                'updated_at' => $task->updated_at,
-                'members' => $task->members->map(function ($member) {
-                    return [
-                        'id' => $member->id,
-                        'name' => $member->name,
-                        'color' => $this->getMemberColor($member->id),
-                    ];
-                }),
-            ];
-        });
-
-        return $this->success(['tasks' => $formattedTasks], 'Team tasks retrieved successfully.');
+    // Check if the team exists
+    $team = Team::find($teamId);
+    if (!$team) {
+        return $this->error('Team not found.', 404);
     }
+
+    // Check if the user is the manager of the project or part of the team (member or leader)
+    $isManager = DB::table('project_role_user')
+        ->where('user_id', $user->id)
+        ->where('project_id', $team->project_id)
+        ->where('role_id', Role::ROLE_MANAGER)
+        ->whereNull('team_id') // Manager has team_id = null
+        ->exists();
+
+    $isPartOfTeam = DB::table('project_role_user')
+        ->where('user_id', $user->id)
+        ->where('team_id', $teamId)
+        ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+        ->exists();
+
+    if (!$isManager && !$isPartOfTeam) {
+        return $this->error('You are not authorized to view this team\'s tasks.', 403);
+    }
+
+    // Get tasks for the team with their members
+    $tasks = Task::with('members')
+        ->where('team_id', $teamId)
+        ->active()
+        ->get();
+
+    // Format the response
+    $formattedTasks = $tasks->map(function ($task) {
+        return [
+            'id' => $task->id,
+            'name' => $task->name,
+            'description' => $task->description,
+            'tags' => $task->tags,
+            'priority' => $task->priority,
+            'deadline' => $task->deadline,
+            'status' => $task->status,
+            'status_text' => $task->status_text, // Include status text for clarity
+            'is_overdue' => $task->is_overdue, // This uses the getIsOverdueAttribute() accessor
+            'team_id' => $task->team_id,
+            'created_at' => $task->created_at,
+            'updated_at' => $task->updated_at,
+            'members' => $task->members->map(function ($member) {
+                return [
+                    'id' => $member->id,
+                    'name' => $member->name,
+                    'color' => $this->getMemberColor($member->id),
+                ];
+            }),
+        ];
+    });
+
+    return $this->success(['tasks' => $formattedTasks], 'Team tasks retrieved successfully.');
+}
 
     public function getAllTasks(Request $request)
     {
