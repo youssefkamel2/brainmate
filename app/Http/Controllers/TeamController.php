@@ -347,6 +347,13 @@ class TeamController extends Controller
             ->where('type', 'invitation')
             ->update(['type' => 'info']);
 
+        // Get team name
+        $team = Team::find($invitation->team_id);
+        $teamName = $team ? $team->name : 'the team';
+
+        // Get user email
+        $userEmail = $user->email;
+
         // Notify the team leader or project manager
         $leader = DB::table('project_role_user')
             ->where('team_id', $invitation->team_id)
@@ -356,20 +363,19 @@ class TeamController extends Controller
             ->first();
 
         if ($leader) {
-            // Notify the team leader
+            // Notify the team leader with updated message
             $notification = AppNotification::create([
                 'user_id' => $leader->id,
-                'message' => "User with ID {$invitation->invited_user_id} has accepted the invitation to join the team.",
+                'message' => "User with email: {$userEmail} has accepted the invitation to join {$teamName}.",
                 'type' => 'info',
                 'read' => false,
                 'action_url' => NULL,
                 'metadata' => [
                     'user_id' => $invitation->invited_user_id,
                     'team_id' => $invitation->team_id,
-                    'team_name' => Team::find($invitation->team_id)->name,
+                    'team_name' => $teamName,
                     'project_id' => $invitation->project_id,
                     'project_name' => Project::find($invitation->project_id)->name,
-
                 ],
             ]);
 
@@ -388,14 +394,14 @@ class TeamController extends Controller
             if ($projectManager) {
                 $notification = AppNotification::create([
                     'user_id' => $projectManager->id,
-                    'message' => "User with ID {$invitation->invited_user_id} has accepted the invitation to join the team (Team ID: {$invitation->team_id}).",
+                    'message' => "User with email: {$userEmail} has accepted the invitation to join {$teamName}.",
                     'type' => 'info',
                     'read' => false,
                     'action_url' => NULL,
                     'metadata' => [
                         'user_id' => $invitation->invited_user_id,
                         'team_id' => $invitation->team_id,
-                        'team_name' => Team::find($invitation->team_id)->name,
+                        'team_name' => $teamName,
                         'project_id' => $invitation->project_id,
                         'project_name' => Project::find($invitation->project_id)->name,
                     ],
