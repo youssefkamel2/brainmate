@@ -97,17 +97,8 @@ class Task extends Model
      */
     public function getIsOverdueAttribute()
     {
-        // A task is overdue if:
-        // 1. It has a deadline.
-        // 2. The deadline has fully passed (starting from the next day).
-        // 3. The status is pending, in_progress, or in_review.
-        return $this->deadline &&
-            now()->startOfDay()->gt($this->deadline->startOfDay()) && // Check if the deadline has fully passed
-            in_array($this->status, [
-                self::STATUS_PENDING,
-                self::STATUS_IN_PROGRESS,
-                self::STATUS_IN_REVIEW
-            ]);
+        // return true if the task is overdue and not completed or cancelled 
+        return $this->deadline && !$this->is_backlog && !$this->is_completed && !$this->is_cancelled && now()->greaterThan($this->deadline);
     }
 
     /**
