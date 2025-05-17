@@ -493,6 +493,62 @@ class TaskController extends Controller
         return $this->success([], 'Task deleted successfully.');
     }
 
+    // Add this to your TaskController
+    public function checkApproachingDeadlines(Request $request)
+    {
+        // Get tasks with deadlines within 24 hours that are not completed
+        $approachingTasks = Task::where('deadline', '<=', now()->addHours(24))
+            ->where('deadline', '>', now())
+            ->whereNotIn('status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED])
+            ->with('members')
+            ->get();
+
+        $notifiedCount = 0;
+
+        foreach ($approachingTasks as $task) {
+            foreach ($task->members as $member) {
+                // Check if notification was already sent for this task to this user
+                $alreadyNotified = Notification::where('user_id', $member->id)
+                    ->where('type', 'deadline_reminder')
+                    ->whereJsonContains('metadata->task_id', $task->id)
+                    ->exists();
+
+                if (!$alreadyNotified) {
+                    // Calculate hours remaining
+                    $hoursRemaining = now()->diffInHours($task->deadline);
+                    $formattedDeadline = $task->deadline->format('Y-m-d H:i:s');
+
+                    // Create and send notification
+                    $notification = Notification::create([
+                        'user_id' => $member->id,
+                        'message' => "Task '{$task->name}' deadline is approaching (due in {$hoursRemaining} hours).",
+                        'type' => 'deadline_reminder',
+                        'read' => false,
+                        'action_url' => NULL,
+                        'metadata' => [
+                            'task_id' => $task->id,
+                            'task_name' => $task->name,
+                            'team_id' => $task->team_id,
+                            'deadline' => $formattedDeadline,
+                            'hours_remaining' => $hoursRemaining,
+                            'reminder_sent_at' => now()->toDateTimeString(),
+                        ],
+                    ]);
+
+                    event(new NotificationSent($notification));
+                    $notifiedCount++;
+                }
+            }
+        }
+
+        return $this->success([
+            'total_approaching_tasks' => $approachingTasks->count(),
+            'total_potential_notifications' => $approachingTasks->sum(fn($task) => $task->members->count()),
+            'notifications_sent' => $notifiedCount,
+            'time_checked' => now()->toDateTimeString(),
+        ], 'Deadline reminders processed successfully.');
+    }
+
     public function addAttachments(Request $request, $taskId)
     {
         // Validate the request

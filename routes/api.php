@@ -106,6 +106,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/teams/{teamId}/backlog', [TaskController::class, 'getBacklogTasks']);
             Route::post('/backlog/publish-bulk', [TaskController::class, 'publishBulkBacklogTasks']);
             Route::post('/backlog/delete-bulk', [TaskController::class, 'deleteBulkBacklogTasks']);
+            Route::post('/check-deadlines', [TaskController::class, 'checkApproachingDeadlines']);
 
         });
 
