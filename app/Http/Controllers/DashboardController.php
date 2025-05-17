@@ -742,7 +742,7 @@ class DashboardController extends Controller
             ->select(
                 DB::raw('YEAR(tasks.created_at) as year'),
                 DB::raw('MONTH(tasks.created_at) as month'),
-                DB::raw('SUM(tasks.estimated_duration) as total_duration')
+                DB::raw('SUM(tasks.duration_days) as total_duration')
             )
             ->groupBy('year', 'month')
             ->orderBy('year')
