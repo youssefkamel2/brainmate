@@ -356,17 +356,20 @@ class TeamController extends Controller
                     'updated_at' => now(),
                 ]);
             }
+        } else {
+
+            // Add the user to the project/team
+            DB::table('project_role_user')->insert([
+                'user_id' => $invitation->invited_user_id,
+                'role_id' => Role::ROLE_MEMBER, // Assign as member
+                'project_id' => $invitation->project_id,
+                'team_id' => $invitation->team_id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
         }
 
-        // Add the user to the project/team
-        DB::table('project_role_user')->insert([
-            'user_id' => $invitation->invited_user_id,
-            'role_id' => Role::ROLE_MEMBER, // Assign as member
-            'project_id' => $invitation->project_id,
-            'team_id' => $invitation->team_id,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+
 
         // Mark the invitation as accepted
         DB::table('invitations')
