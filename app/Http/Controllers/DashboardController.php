@@ -955,7 +955,6 @@ class DashboardController extends Controller
     {
         // First get total number of active tasks in the team (excluding completed/cancelled)
         $totalTasks = Task::where('team_id', $teamId)
-            ->whereNotIn('status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED])
             ->count();
 
         if ($totalTasks == 0) {
