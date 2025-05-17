@@ -327,15 +327,36 @@ class TeamController extends Controller
             return $this->error('You are already a manager of this project.', 400);
         }
 
-        // Add the user to the project/team
-        DB::table('project_role_user')->insert([
-            'user_id' => $invitation->invited_user_id,
-            'role_id' => $invitation->role_id,
-            'project_id' => $invitation->project_id,
-            'team_id' => $invitation->team_id,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        if ($invitation->role_id == Role::ROLE_LEADER) {
+            // Check if there's already a leader in the team
+            $currentLeader = DB::table('project_role_user')
+                ->where('team_id', $invitation->team_id)
+                ->where('role_id', Role::ROLE_LEADER)
+                ->first();
+
+            if ($currentLeader) {
+
+                // Add the user to the project/team
+                DB::table('project_role_user')->insert([
+                    'user_id' => $invitation->invited_user_id,
+                    'role_id' => Role::ROLE_MEMBER, // Assign as member
+                    'project_id' => $invitation->project_id,
+                    'team_id' => $invitation->team_id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } else {
+                // Add the user as a leader
+                DB::table('project_role_user')->insert([
+                    'user_id' => $invitation->invited_user_id,
+                    'role_id' => Role::ROLE_LEADER, // Assign as leader
+                    'project_id' => $invitation->project_id,
+                    'team_id' => $invitation->team_id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
 
         // Mark the invitation as accepted
         DB::table('invitations')
