@@ -493,7 +493,7 @@ class TaskController extends Controller
         return $this->success([], 'Task deleted successfully.');
     }
 
-    // Add this to your TaskController
+    // check deadlines
     public function checkApproachingDeadlines(Request $request)
     {
         // Get tasks with deadlines within 24 hours that are not completed
