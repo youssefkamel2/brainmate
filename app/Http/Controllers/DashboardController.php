@@ -891,8 +891,7 @@ class DashboardController extends Controller
     protected function getTasksByPriority(User $user, $projectId = null, $teamId = null)
     {
         $query = TaskMember::where('user_id', $user->id)
-            ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
-            ->whereNotIn('tasks.status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED]);
+            ->join('tasks', 'task_members.task_id', '=', 'tasks.id');
 
         if ($projectId) {
             $query->join('teams', 'tasks.team_id', '=', 'teams.id')
