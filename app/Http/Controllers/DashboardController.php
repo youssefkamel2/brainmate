@@ -1037,7 +1037,6 @@ class DashboardController extends Controller
     protected function getTeamTasksByPriority($teamId)
     {
         $priorityCounts = Task::where('team_id', $teamId)
-            ->whereNotIn('status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED])
             ->select('priority', DB::raw('count(*) as count'))
             ->groupBy('priority')
             ->pluck('count', 'priority')

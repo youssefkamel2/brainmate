@@ -110,10 +110,11 @@ class TaskController extends Controller
 
         if ($request->is_backlog) {
             $taskData['duration_days'] = $request->duration_days;
-            $taskData['deadline'] = null;
+            $taskData['deadline'] = today()->addDays($request->duration_days);
         } else {
             $taskData['deadline'] = $request->deadline;
-            $taskData['duration_days'] = null;
+            // If no deadline is provided, set it = deadline - today's date
+            $taskData['duration_days'] = $request->duration_days ?? now()->diffInDays($request->deadline);
         }
 
         $task = Task::create($taskData);
