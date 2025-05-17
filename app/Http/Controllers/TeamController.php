@@ -135,7 +135,7 @@ class TeamController extends Controller
         // Validate the request
         $validator = Validator::make($request->all(), [
             'email' => 'required|email',
-            'role_id' => 'required|exists:roles,id',
+            'role_id' => 'required|exists:roles,id|in:' . Role::ROLE_LEADER . ',' . Role::ROLE_MEMBER,
         ]);
 
         if ($validator->fails()) {
@@ -172,9 +172,16 @@ class TeamController extends Controller
             return $this->error('Cannot invite yourself.', 422);
         }
 
-        // Check if the role is manager (only leaders and members can be invited)
-        if ($request->role_id == Role::ROLE_MANAGER) {
-            return $this->error('You can only invite users as leaders or members.', 422);
+        // Check if inviting as leader and there's already a leader
+        if ($request->role_id == Role::ROLE_LEADER) {
+            $currentLeader = DB::table('project_role_user')
+                ->where('team_id', $teamId)
+                ->where('role_id', Role::ROLE_LEADER)
+                ->first();
+
+            if ($currentLeader) {
+                return $this->error('There is already a leader for this team. Please demote the current leader first before inviting a new one.', 422);
+            }
         }
 
         // Check if the user already exists in the team
@@ -190,28 +197,21 @@ class TeamController extends Controller
             }
         }
 
-        // Check if there's already a pending invitation for this email and team, if the user does not exist then don't check
+        // Check if there's already a pending invitation for this email and team then delete it and send a new one
         if ($invitedUser) {
             $existingInvitation = DB::table('invitations')
                 ->where('project_id', $team->project_id)
                 ->where('team_id', $teamId)
                 ->where('invited_user_id', $invitedUser->id)
-                ->whereNull('accepted_at') // Not accepted
-                ->whereNull('rejected_at') // Not rejected
+                ->whereNull('accepted_at')
+                ->whereNull('rejected_at')
                 ->first();
 
             if ($existingInvitation) {
-                return $this->error('An invitation is already pending for this user.', 422);
+                $existingInvitation->delete();
             }
         }
-
-        // If the role is leader, check if there's already a leader
-        if ($request->role_id == Role::ROLE_LEADER) {
-            DB::table('project_role_user')
-                ->where('team_id', $teamId)
-                ->where('role_id', Role::ROLE_LEADER)
-                ->delete();
-        }
+        
 
         // Generate a unique token for the invitation
         $token = Str::random(60);
@@ -236,7 +236,6 @@ class TeamController extends Controller
         $role = Role::find($request->role_id)->name;
 
         if ($invitedUser) {
-
             // Create a system notification for the invited user
             $notification = AppNotification::create([
                 'user_id' => $invitedUser->id,
@@ -257,7 +256,6 @@ class TeamController extends Controller
             // Broadcast the notification
             event(new NotificationSent($notification));
         } else {
-
             // If the user does not exist, send an email notification
             Notification::route('mail', $request->email)
                 ->notify(new TeamInvitationNotification($team, $project, $role, $token, $request->email));
