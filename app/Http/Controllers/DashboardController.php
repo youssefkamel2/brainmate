@@ -953,6 +953,20 @@ class DashboardController extends Controller
      */
     protected function getTeamWorkloadDistribution($teamId)
     {
+        // First get total number of active tasks in the team (excluding completed/cancelled)
+        $totalTasks = Task::where('team_id', $teamId)
+            ->whereNotIn('status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED])
+            ->count();
+
+        if ($totalTasks == 0) {
+            return [
+                'labels' => [],
+                'values' => [],
+                'percentages' => []
+            ];
+        }
+
+        // Get each member's task count and calculate percentage
         $members = TaskMember::join('tasks', 'task_members.task_id', '=', 'tasks.id')
             ->join('users', 'task_members.user_id', '=', 'users.id')
             ->where('tasks.team_id', $teamId)
@@ -963,19 +977,27 @@ class DashboardController extends Controller
                 DB::raw('count(*) as task_count')
             )
             ->groupBy('users.id', 'users.name')
-            ->get();
+            ->get()
+            ->map(function ($member) use ($totalTasks) {
+                $member->percentage = round(($member->task_count / $totalTasks) * 100);
+                return $member;
+            });
 
         $labels = [];
         $values = [];
+        $percentages = [];
 
         foreach ($members as $member) {
             $labels[] = $member->name;
             $values[] = $member->task_count;
+            $percentages[] = $member->percentage;
         }
 
         return [
             'labels' => $labels,
-            'values' => $values
+            'values' => $values,
+            'percentages' => $percentages,
+            'total_team_tasks' => $totalTasks
         ];
     }
 
