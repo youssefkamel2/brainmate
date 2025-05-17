@@ -197,21 +197,24 @@ class TeamController extends Controller
             }
         }
 
-        // Check if there's already a pending invitation for this email and team then delete it and send a new one
+        // Delete any existing pending invitation for this user and team
         if ($invitedUser) {
-            $existingInvitation = DB::table('invitations')
+            DB::table('invitations')
                 ->where('project_id', $team->project_id)
                 ->where('team_id', $teamId)
                 ->where('invited_user_id', $invitedUser->id)
                 ->whereNull('accepted_at')
                 ->whereNull('rejected_at')
-                ->first();
-
-            if ($existingInvitation) {
-                $existingInvitation->delete();
-            }
+                ->delete();
+        } else {
+            DB::table('invitations')
+                ->where('project_id', $team->project_id)
+                ->where('team_id', $teamId)
+                ->where('email', $request->email)
+                ->whereNull('accepted_at')
+                ->whereNull('rejected_at')
+                ->delete();
         }
-        
 
         // Generate a unique token for the invitation
         $token = Str::random(60);
