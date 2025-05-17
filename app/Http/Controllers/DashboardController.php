@@ -703,20 +703,23 @@ class DashboardController extends Controller
     /**
      * Get overdue and at risk tasks for user in team
      */
+
     protected function getUserTaskAlerts(User $user, $teamId)
     {
-        // Overdue tasks
+        // Overdue tasks (have deadline and it's passed)
         $overdue = TaskMember::where('user_id', $user->id)
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
             ->where('tasks.team_id', $teamId)
+            ->whereNotNull('tasks.deadline')
             ->where('tasks.deadline', '<', now())
             ->whereIn('tasks.status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
             ->count();
 
-        // At risk tasks (approaching deadline - within 3 days)
+        // At risk tasks (have deadline and it's within 3 days)
         $atRisk = TaskMember::where('user_id', $user->id)
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
             ->where('tasks.team_id', $teamId)
+            ->whereNotNull('tasks.deadline')
             ->whereBetween('tasks.deadline', [now(), now()->addDays(3)])
             ->whereIn('tasks.status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
             ->count();
@@ -730,6 +733,7 @@ class DashboardController extends Controller
     /**
      * Get total tasks duration per month for user in team
      */
+
     protected function getUserMonthlyTaskDuration(User $user, $teamId)
     {
         $startDate = now()->subYear()->startOfMonth();
@@ -742,7 +746,7 @@ class DashboardController extends Controller
             ->select(
                 DB::raw('YEAR(tasks.created_at) as year'),
                 DB::raw('MONTH(tasks.created_at) as month'),
-                DB::raw('SUM(tasks.duration_days) as total_duration')
+                DB::raw('SUM(COALESCE(tasks.duration_days, 1)) as total_duration')
             )
             ->groupBy('year', 'month')
             ->orderBy('year')
@@ -781,18 +785,19 @@ class DashboardController extends Controller
      */
     protected function getUserAvgCompletionTime(User $user, $teamId)
     {
+        // Since we don't have started_at/completed_at, we'll use created_at and updated_at
+        // for completed tasks as a rough estimate
         $completedTasks = TaskMember::where('user_id', $user->id)
             ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
             ->where('tasks.team_id', $teamId)
             ->where('tasks.status', Task::STATUS_COMPLETED)
-            ->whereNotNull('tasks.completed_at')
-            ->whereNotNull('tasks.started_at')
             ->select(
-                DB::raw('AVG(TIMESTAMPDIFF(HOUR, tasks.started_at, tasks.completed_at)) as avg_hours')
+                DB::raw('AVG(TIMESTAMPDIFF(HOUR, tasks.created_at, tasks.updated_at)) as avg_hours')
             )
             ->first();
 
-        return $completedTasks->avg_hours ?? 0;
+        // Convert hours to days (assuming 8 working hours per day)
+        return $completedTasks ? round($completedTasks->avg_hours / 8, 1) : 0;
     }
 
     /**
@@ -822,6 +827,7 @@ class DashboardController extends Controller
      * Get completion trend (tasks completed per month for last year)
      * Optionally filtered by project or team
      */
+
     protected function getCompletionTrend(User $user, $projectId = null, $teamId = null)
     {
         $startDate = now()->subYear()->startOfMonth();
@@ -924,12 +930,14 @@ class DashboardController extends Controller
     {
         // Overdue tasks
         $overdue = Task::where('team_id', $teamId)
+            ->whereNotNull('deadline')
             ->where('deadline', '<', now())
             ->whereIn('status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
             ->count();
 
-        // At risk tasks (approaching deadline - within 3 days)
+        // At risk tasks
         $atRisk = Task::where('team_id', $teamId)
+            ->whereNotNull('deadline')
             ->whereBetween('deadline', [now(), now()->addDays(3)])
             ->whereIn('status', [Task::STATUS_PENDING, Task::STATUS_IN_PROGRESS, Task::STATUS_IN_REVIEW])
             ->count();
@@ -989,18 +997,19 @@ class DashboardController extends Controller
     /**
      * Get average time to complete tasks for whole team
      */
+
     protected function getTeamAvgCompletionTime($teamId)
     {
+        // Using created_at and updated_at as proxies for start/complete times
         $completedTasks = Task::where('team_id', $teamId)
             ->where('status', Task::STATUS_COMPLETED)
-            ->whereNotNull('completed_at')
-            ->whereNotNull('started_at')
             ->select(
-                DB::raw('AVG(TIMESTAMPDIFF(HOUR, started_at, completed_at)) as avg_hours')
+                DB::raw('AVG(TIMESTAMPDIFF(HOUR, created_at, updated_at)) as avg_hours')
             )
             ->first();
 
-        return $completedTasks->avg_hours ?? 0;
+        // Convert hours to days (assuming 8 working hours per day)
+        return $completedTasks ? round($completedTasks->avg_hours / 8, 1) : 0;
     }
 
     /**
