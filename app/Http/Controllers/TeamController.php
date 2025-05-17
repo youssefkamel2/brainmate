@@ -60,7 +60,7 @@ class TeamController extends Controller
         return $this->success(['team' => $team], 'Team created successfully.');
     }
 
-    // Update team details (Manager and Leader)
+    // Update team details (Manager only)
     public function updateTeam(Request $request, $teamId)
     {
         // Get the authenticated user
@@ -82,20 +82,14 @@ class TeamController extends Controller
             return $this->error('Team not found.', 404);
         }
 
-        // Check if the user is the manager or leader of the team
-        $isManagerOrLeader = $user->roles()
+        // Check if the user is the manager of the project
+        $isManager = $user->roles()
             ->where('project_id', $team->project_id)
-            ->where(function ($query) use ($team) {
-                $query->where('role_id', Role::ROLE_MANAGER)
-                    ->orWhere(function ($q) use ($team) {
-                        $q->where('role_id', Role::ROLE_LEADER)
-                            ->where('team_id', $team->id);
-                    });
-            })
+            ->where('role_id', Role::ROLE_MANAGER)
             ->exists();
 
-        if (!$isManagerOrLeader) {
-            return $this->error('Only the manager or team leader can update the team.', 403);
+        if (!$isManager) {
+            return $this->error('Only the manager can update the team.', 403);
         }
 
         // Update the team
