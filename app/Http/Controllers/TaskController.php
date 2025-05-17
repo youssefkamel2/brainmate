@@ -33,6 +33,7 @@ class TaskController extends Controller
     use ResponseTrait, MemberColorTrait;
 
     // Create Task (Team Leader & manager Only)
+
     public function createTask(Request $request)
     {
         LogBatch::startBatch();
@@ -128,9 +129,12 @@ class TaskController extends Controller
                     'updated_at' => now(),
                 ]);
 
-                $member = User::find($memberId);
-                if ($member) {
-                    dispatch(new SendTaskAssignedNotifications($member, $task))->afterResponse();
+                // Only send notifications if the task is not a backlog task
+                if (!$task->is_backlog) {
+                    $member = User::find($memberId);
+                    if ($member) {
+                        dispatch(new SendTaskAssignedNotifications($member, $task))->afterResponse();
+                    }
                 }
             }
         }
