@@ -358,6 +358,16 @@ class TeamController extends Controller
             }
         }
 
+        // Add the user to the project/team
+        DB::table('project_role_user')->insert([
+            'user_id' => $invitation->invited_user_id,
+            'role_id' => Role::ROLE_MEMBER, // Assign as member
+            'project_id' => $invitation->project_id,
+            'team_id' => $invitation->team_id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         // Mark the invitation as accepted
         DB::table('invitations')
             ->where('id', $invitation->id)
@@ -376,18 +386,12 @@ class TeamController extends Controller
         // Get user email
         $userEmail = $user->email;
 
-        // Notify the team leader or project manager
-        $leader = DB::table('project_role_user')
-            ->where('team_id', $invitation->team_id)
-            ->where('role_id', Role::ROLE_LEADER)
-            ->join('users', 'project_role_user.user_id', '=', 'users.id')
-            ->select('users.*')
-            ->first();
+        // Notify the invited_by 
 
-        if ($leader) {
-            // Notify the team leader with updated message
+        $invitedBy = User::find($invitation->invited_by);
+        if ($invitedBy) {
             $notification = AppNotification::create([
-                'user_id' => $leader->id,
+                'user_id' => $invitedBy->id,
                 'message' => "User with email: {$userEmail} has accepted the invitation to join {$teamName}.",
                 'type' => 'info',
                 'read' => false,
@@ -403,36 +407,64 @@ class TeamController extends Controller
 
             // Broadcast the notification
             event(new NotificationSent($notification));
-        } else {
-            // If there's no team leader, notify the project manager
-            $projectManager = DB::table('project_role_user')
-                ->where('project_id', $invitation->project_id)
-                ->where('role_id', Role::ROLE_MANAGER)
-                ->whereNull('team_id') // Manager has team_id = null
-                ->join('users', 'project_role_user.user_id', '=', 'users.id')
-                ->select('users.*')
-                ->first();
-
-            if ($projectManager) {
-                $notification = AppNotification::create([
-                    'user_id' => $projectManager->id,
-                    'message' => "User with email: {$userEmail} has accepted the invitation to join {$teamName}.",
-                    'type' => 'info',
-                    'read' => false,
-                    'action_url' => NULL,
-                    'metadata' => [
-                        'user_id' => $invitation->invited_user_id,
-                        'team_id' => $invitation->team_id,
-                        'team_name' => $teamName,
-                        'project_id' => $invitation->project_id,
-                        'project_name' => Project::find($invitation->project_id)->name,
-                    ],
-                ]);
-
-                // Broadcast the notification
-                event(new NotificationSent($notification));
-            }
         }
+
+        // $leader = DB::table('project_role_user')
+        //     ->where('team_id', $invitation->team_id)
+        //     ->where('role_id', Role::ROLE_LEADER)
+        //     ->join('users', 'project_role_user.user_id', '=', 'users.id')
+        //     ->select('users.*')
+        //     ->first();
+
+        // if ($leader) {
+        //     // Notify the team leader with updated message
+        //     $notification = AppNotification::create([
+        //         'user_id' => $leader->id,
+        //         'message' => "User with email: {$userEmail} has accepted the invitation to join {$teamName}.",
+        //         'type' => 'info',
+        //         'read' => false,
+        //         'action_url' => NULL,
+        //         'metadata' => [
+        //             'user_id' => $invitation->invited_user_id,
+        //             'team_id' => $invitation->team_id,
+        //             'team_name' => $teamName,
+        //             'project_id' => $invitation->project_id,
+        //             'project_name' => Project::find($invitation->project_id)->name,
+        //         ],
+        //     ]);
+
+        //     // Broadcast the notification
+        //     event(new NotificationSent($notification));
+        // } else {
+        //     // If there's no team leader, notify the project manager
+        //     $projectManager = DB::table('project_role_user')
+        //         ->where('project_id', $invitation->project_id)
+        //         ->where('role_id', Role::ROLE_MANAGER)
+        //         ->whereNull('team_id') // Manager has team_id = null
+        //         ->join('users', 'project_role_user.user_id', '=', 'users.id')
+        //         ->select('users.*')
+        //         ->first();
+
+        //     if ($projectManager) {
+        //         $notification = AppNotification::create([
+        //             'user_id' => $projectManager->id,
+        //             'message' => "User with email: {$userEmail} has accepted the invitation to join {$teamName}.",
+        //             'type' => 'info',
+        //             'read' => false,
+        //             'action_url' => NULL,
+        //             'metadata' => [
+        //                 'user_id' => $invitation->invited_user_id,
+        //                 'team_id' => $invitation->team_id,
+        //                 'team_name' => $teamName,
+        //                 'project_id' => $invitation->project_id,
+        //                 'project_name' => Project::find($invitation->project_id)->name,
+        //             ],
+        //         ]);
+
+        //         // Broadcast the notification
+        //         event(new NotificationSent($notification));
+        //     }
+        // }
 
         return $this->success([], 'Invitation accepted successfully.');
     }
