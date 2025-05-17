@@ -970,7 +970,6 @@ class DashboardController extends Controller
         $members = TaskMember::join('tasks', 'task_members.task_id', '=', 'tasks.id')
             ->join('users', 'task_members.user_id', '=', 'users.id')
             ->where('tasks.team_id', $teamId)
-            ->whereNotIn('tasks.status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED])
             ->select(
                 'users.id',
                 'users.name',
