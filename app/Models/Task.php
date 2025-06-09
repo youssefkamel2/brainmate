@@ -15,6 +15,7 @@ class Task extends Model
     protected $casts = [
         'deadline' => 'datetime',
         'published_at' => 'datetime',
+        'completed_at' => 'datetime',
         'is_backlog' => 'boolean',
     ];
 
@@ -49,11 +50,12 @@ class Task extends Model
         'published_at',
         'is_backlog',
         'status',
+        'completed_at',
         'created_at',
         'updated_at',
     ];
 
-    protected $appends = ['status_text', 'is_overdue'];
+    protected $appends = ['status_text', 'is_overdue', 'is_completed', 'is_cancelled'];
 
     public function project()
     {
@@ -93,12 +95,41 @@ class Task extends Model
     }
 
     /**
+     * Check if the task is completed.
+     */
+    public function getIsCompletedAttribute()
+    {
+        return $this->status === self::STATUS_COMPLETED;
+    }
+
+    /**
+     * Check if the task is cancelled.
+     */
+    public function getIsCancelledAttribute()
+    {
+        return $this->status === self::STATUS_CANCELLED;
+    }
+
+    /**
      * Check if the task is overdue.
      */
     public function getIsOverdueAttribute()
     {
-        // return true if the task is overdue and not completed or cancelled 
-        return $this->deadline && !$this->is_backlog && !$this->is_completed && !$this->is_cancelled && now()->greaterThan($this->deadline);
+        if (!$this->deadline || $this->is_backlog) {
+            return false;
+        }
+
+        if ($this->is_completed) {
+            // If task is completed, check if it was completed after the deadline
+            return $this->completed_at && $this->completed_at->greaterThan($this->deadline);
+        }
+
+        if ($this->is_cancelled) {
+            return false;
+        }
+
+        // For active tasks, check if current time is past the deadline
+        return now()->greaterThan($this->deadline);
     }
 
     /**
@@ -135,5 +166,25 @@ class Task extends Model
                 'published_at' => now(),
                 'deadline' => DB::raw('CASE WHEN duration_days > 0 THEN DATE_ADD(NOW(), INTERVAL duration_days DAY) ELSE NULL END'),
             ]);
+    }
+
+    /**
+     * Mark the task as completed.
+     */
+    public function markAsCompleted()
+    {
+        $this->status = self::STATUS_COMPLETED;
+        $this->completed_at = now();
+        $this->save();
+    }
+
+    /**
+     * Mark the task as incomplete.
+     */
+    public function markAsIncomplete()
+    {
+        $this->status = self::STATUS_PENDING;
+        $this->completed_at = null;
+        $this->save();
     }
 }

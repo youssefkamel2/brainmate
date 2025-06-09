@@ -625,128 +625,130 @@ class TaskController extends Controller
 
 
     public function getTeamTasks($teamId)
-{
-    // Get the authenticated user
-    $user = Auth::user();
+    {
+        $user = Auth::user();
 
-    // Check if the team exists
-    $team = Team::find($teamId);
-    if (!$team) {
-        return $this->error('Team not found.', 404);
+        $team = Team::find($teamId);
+        if (!$team) {
+            return $this->error('Team not found.', 404);
+        }
+
+        $isTeamMember = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $teamId)
+            ->exists();
+
+        $isProjectManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id')
+            ->exists();
+
+        if (!$isTeamMember && !$isProjectManager) {
+            return $this->error('You are not authorized to view team tasks.', 403);
+        }
+
+        $tasks = Task::where('team_id', $teamId)
+            ->where('is_backlog', false)
+            ->with(['members', 'attachments'])
+            ->get()
+            ->map(function ($task) {
+                $taskData = $task->toArray();
+                $taskData['is_overdue'] = $task->is_overdue;
+                $taskData['completed_on_time'] = $task->completed_at && $task->deadline 
+                    ? $task->completed_at->lessThanOrEqualTo($task->deadline)
+                    : null;
+                $taskData['completion_status'] = $this->getCompletionStatus($task);
+                return $taskData;
+            });
+
+        return $this->success(['tasks' => $tasks]);
     }
-
-    // Check if the user is the manager of the project or part of the team (member or leader)
-    $isManager = DB::table('project_role_user')
-        ->where('user_id', $user->id)
-        ->where('project_id', $team->project_id)
-        ->where('role_id', Role::ROLE_MANAGER)
-        ->whereNull('team_id') // Manager has team_id = null
-        ->exists();
-
-    $isPartOfTeam = DB::table('project_role_user')
-        ->where('user_id', $user->id)
-        ->where('team_id', $teamId)
-        ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
-        ->exists();
-
-    if (!$isManager && !$isPartOfTeam) {
-        return $this->error('You are not authorized to view this team\'s tasks.', 403);
-    }
-
-    // Get tasks for the team with their members
-    $tasks = Task::with('members')
-        ->where('team_id', $teamId)
-        ->active()
-        ->get();
-
-    // Format the response
-    $formattedTasks = $tasks->map(function ($task) {
-        return [
-            'id' => $task->id,
-            'name' => $task->name,
-            'description' => $task->description,
-            'tags' => $task->tags,
-            'priority' => $task->priority,
-            'deadline' => $task->deadline,
-            'status' => $task->status,
-            'status_text' => $task->status_text, // Include status text for clarity
-            'is_overdue' => $task->is_overdue, // This uses the getIsOverdueAttribute() accessor
-            'team_id' => $task->team_id,
-            'created_at' => $task->created_at,
-            'updated_at' => $task->updated_at,
-            'members' => $task->members->map(function ($member) {
-                return [
-                    'id' => $member->id,
-                    'name' => $member->name,
-                    'color' => $this->getMemberColor($member->id),
-                ];
-            }),
-        ];
-    });
-
-    return $this->success(['tasks' => $formattedTasks], 'Team tasks retrieved successfully.');
-}
 
     public function getAllTasks(Request $request)
     {
-        // Get the authenticated user
         $user = Auth::user();
 
-        // Step 1: Get all projects where the user is a manager
-        $managedProjects = DB::table('project_role_user')
-            ->where('user_id', $user->id)
-            ->where('role_id', Role::ROLE_MANAGER)
-            ->pluck('project_id');
+        $query = Task::query()
+            ->where('is_backlog', false)
+            ->with(['members', 'team', 'attachments']);
 
-        // Step 2: Get all teams where the user is a member or leader
-        $teamIds = DB::table('project_role_user')
-            ->where('user_id', $user->id)
-            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
-            ->pluck('team_id')
-            ->toArray();
-
-        // Step 3: If the user is a project manager, include all teams in the projects they manage
-        if ($managedProjects->isNotEmpty()) {
-            $managedTeamIds = Team::whereIn('project_id', $managedProjects)
-                ->pluck('id')
-                ->toArray();
-
-            // Merge the team IDs from managed projects with the user's team IDs
-            $teamIds = array_unique(array_merge($teamIds, $managedTeamIds));
+        // Filter by team if specified
+        if ($request->has('team_id')) {
+            $query->where('team_id', $request->team_id);
         }
 
-        // Get all tasks in these teams
-        $tasks = Task::whereIn('team_id', $teamIds)->active()->get();
+        // Filter by status if specified
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        }
 
-        // Format the response
-        $formattedTasks = $tasks->map(function ($task) use ($user) {
-            return [
-                'id' => $task->id,
-                'name' => $task->name,
-                'description' => $task->description,
-                'tags' => $task->tags,
-                'priority' => $task->priority,
-                'deadline' => $task->deadline,
-                'status' => $task->status,
-                'is_overdue' => $task->is_overdue, // Add the overdue flag
-                'team_id' => $task->team_id,
-                'project_id' => $task->team->project_id,
-                'team_name' => $task->team->name,
-                'project_name' => $task->team->project->name,
-                'assigned_to_me' => $task->members->contains('id', $user->id),
-                'created_at' => $task->created_at, // Include created_at
-                'updated_at' => $task->updated_at,
-                'members' => $task->members->map(function ($member) {
-                    return [
-                        'id' => $member->id,
-                        'name' => $member->name,
-                        'color' => $this->getMemberColor($member->id),
-                    ];
-                }),
-            ];
+        // Filter by priority if specified
+        if ($request->has('priority')) {
+            $query->where('priority', $request->priority);
+        }
+
+        // Filter by deadline range if specified
+        if ($request->has('deadline_start') && $request->has('deadline_end')) {
+            $query->whereBetween('deadline', [$request->deadline_start, $request->deadline_end]);
+        }
+
+        // Filter overdue tasks if specified
+        if ($request->has('is_overdue') && $request->boolean('is_overdue')) {
+            $query->where('deadline', '<', now())
+                ->where(function ($q) {
+                    $q->where('status', '!=', Task::STATUS_COMPLETED)
+                        ->orWhere(function ($q) {
+                            $q->where('status', Task::STATUS_COMPLETED)
+                                ->whereNotNull('completed_at')
+                                ->whereColumn('completed_at', '>', 'deadline');
+                        });
+                });
+        }
+
+        // Get tasks where user is a member or has team/project level access
+        $query->where(function ($q) use ($user) {
+            $q->whereHas('members', function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+            })
+            ->orWhereHas('team', function ($q) use ($user) {
+                $q->whereHas('projectRoleUsers', function ($q) use ($user) {
+                    $q->where('user_id', $user->id);
+                });
+            });
         });
 
-        return $this->success(['tasks' => $formattedTasks], 'All tasks retrieved successfully.');
+        $tasks = $query->get()
+            ->map(function ($task) {
+                $taskData = $task->toArray();
+                $taskData['is_overdue'] = $task->is_overdue;
+                $taskData['completed_on_time'] = $task->completed_at && $task->deadline 
+                    ? $task->completed_at->lessThanOrEqualTo($task->deadline)
+                    : null;
+                $taskData['completion_status'] = $this->getCompletionStatus($task);
+                return $taskData;
+            });
+
+        return $this->success(['tasks' => $tasks]);
+    }
+
+    /**
+     * Get the completion status of a task
+     */
+    private function getCompletionStatus(Task $task)
+    {
+        if (!$task->is_completed) {
+            return null;
+        }
+
+        if (!$task->deadline || !$task->completed_at) {
+            return 'completed_no_deadline';
+        }
+
+        return $task->completed_at->lessThanOrEqualTo($task->deadline)
+            ? 'completed_on_time'
+            : 'completed_late';
     }
 
     // get task by id
@@ -1080,99 +1082,78 @@ class TaskController extends Controller
             return $this->error($validator->errors()->first(), 422);
         }
 
-        $task = Task::find($taskId);
-        if (!$task) {
-            return $this->error('Task not found.', 404);
-        }
+        $task = Task::findOrFail($taskId);
 
-        $isTaskMember = DB::table('task_members')
-            ->where('task_id', $taskId)
-            ->where('user_id', $user->id)
-            ->exists();
-
-        $isTeamLeader = DB::table('project_role_user')
+        // Check if user is assigned to the task or is a team leader/manager
+        $isAssigned = $task->members()->where('user_id', $user->id)->exists();
+        $isLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_LEADER)
             ->exists();
-
-        $isProjectManager = DB::table('project_role_user')
+        $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('project_id', $task->team->project_id)
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id')
             ->exists();
 
-        if (!$isTaskMember && !$isTeamLeader && !$isProjectManager) {
-            return $this->error('You are not authorized to update the task status.', 403);
+        if (!$isAssigned && !$isLeader && !$isManager) {
+            return $this->error('You are not authorized to update this task\'s status.', 403);
         }
 
-        activity()
-            ->causedBy($user)
-            ->performedOn($task)
-            ->withProperties(['old_status' => $task->status, 'new_status' => $request->status])
-            ->event('updated')
-            ->log('Task status updated');
+        $oldStatus = $task->status;
+        $newStatus = $request->status;
 
-        $task->status = $request->status;
-        $task->save();
-
-        $teamLeader = DB::table('project_role_user')
-            ->where('team_id', $task->team_id)
-            ->where('role_id', Role::ROLE_LEADER)
-            ->join('users', 'project_role_user.user_id', '=', 'users.id')
-            ->select('users.*')
-            ->first();
-
-        $taskMembers = $task->members;
-
-        if ($teamLeader) {
-            // $teamLeader->notify(new TaskStatusUpdatedNotification($task));
-
-            // Send notification to team leader
-            $notification = Notification::create([
-                'user_id' => $teamLeader->id,
-                'message' => "Task status updated: {$task->name} is now {$task->status_text}.",
-                'type' => 'info',
-                'read' => false,
-                'action_url' => NULL,
-                'metadata' => [
-                    'task_id' => $task->id,
-                    'task_name' => $task->name,
-                    'team_id' => $task->team_id,
-                    'new_status' => $task->status_text,
-                ],
-            ]);
-
-            event(new NotificationSent($notification));
-        }
-
-        foreach ($taskMembers as $member) {
-            if ($member->id !== $user->id) {
-                // $member->notify(new TaskStatusUpdatedNotification($task));
-
-                // Send notification to task members
-                $notification = Notification::create([
-                    'user_id' => $member->id,
-                    'message' => "Task status updated: {$task->name} is now {$task->status_text}.",
-                    'type' => 'info',
-                    'read' => false,
-                    'action_url' => NULL,
-                    'metadata' => [
-                        'task_id' => $task->id,
-                        'task_name' => $task->name,
-                        'team_id' => $task->team_id,
-                        'new_status' => $task->status_text,
-                    ],
-                ]);
-
-                event(new NotificationSent($notification));
+        DB::beginTransaction();
+        try {
+            // Update completed_at timestamp based on status change
+            if ($newStatus === Task::STATUS_COMPLETED) {
+                if (!$task->completed_at) {
+                    $task->completed_at = now();
+                }
+            } elseif ($oldStatus === Task::STATUS_COMPLETED && $newStatus !== Task::STATUS_COMPLETED) {
+                $task->completed_at = null;
             }
-        }
 
-        return $this->success([
-            'status' => $task->status,
-            'status_text' => $task->status_text,
-        ], 'Task status updated successfully.');
+            $task->status = $newStatus;
+            $task->save();
+
+            // Log the status change
+            activity()
+                ->causedBy($user)
+                ->performedOn($task)
+                ->withProperties([
+                    'old_status' => Task::$statusTexts[$oldStatus],
+                    'new_status' => Task::$statusTexts[$newStatus],
+                    'completed_at' => $task->completed_at,
+                ])
+                ->event('status_updated')
+                ->log('Task status updated');
+
+            // Notify task members about the status change
+            foreach ($task->members as $member) {
+                if ($member->id !== $user->id) {
+                    $member->notify(new TaskStatusUpdatedNotification($task, $user));
+                }
+            }
+
+            DB::commit();
+
+            // Include completion status and overdue information in response
+            $taskData = $task->toArray();
+            $taskData['is_overdue'] = $task->is_overdue;
+            $taskData['completed_on_time'] = $task->completed_at && $task->deadline 
+                ? $task->completed_at->lessThanOrEqualTo($task->deadline)
+                : null;
+
+            return $this->success(
+                ['task' => $taskData],
+                'Task status updated successfully.'
+            );
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->error('Failed to update task status: ' . $e->getMessage(), 500);
+        }
     }
 }
