@@ -1171,20 +1171,11 @@ class TaskController extends Controller
         $newStatus = $request->status;
 
         // Handle completed_at timestamp
-        if ($newStatus === Task::STATUS_COMPLETED && $oldStatus !== Task::STATUS_COMPLETED) {
-            echo 'completed';
-            echo now();
-            die;
+        if ($newStatus == Task::STATUS_COMPLETED && $oldStatus !== Task::STATUS_COMPLETED) {
             $task->completed_at = now();
-        } elseif ($oldStatus === Task::STATUS_COMPLETED && $newStatus !== Task::STATUS_COMPLETED) {
-            echo 'not completed';
-            echo $task->completed_at;
-            die;
+        } elseif ($oldStatus == Task::STATUS_COMPLETED && $newStatus !== Task::STATUS_COMPLETED) {
             $task->completed_at = null;
         }
-
-        echo 'completed_at: ' . $task->completed_at;
-        die;    
 
         activity()
             ->causedBy($user)
