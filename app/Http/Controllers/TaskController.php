@@ -1172,6 +1172,9 @@ class TaskController extends Controller
 
         // Handle completed_at timestamp
         if ($newStatus === Task::STATUS_COMPLETED && $oldStatus !== Task::STATUS_COMPLETED) {
+            echo 'completed';
+            echo now();
+            die;
             $task->completed_at = now();
         } elseif ($oldStatus === Task::STATUS_COMPLETED && $newStatus !== Task::STATUS_COMPLETED) {
             $task->completed_at = null;
