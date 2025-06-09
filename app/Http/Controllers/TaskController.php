@@ -1177,8 +1177,14 @@ class TaskController extends Controller
             die;
             $task->completed_at = now();
         } elseif ($oldStatus === Task::STATUS_COMPLETED && $newStatus !== Task::STATUS_COMPLETED) {
+            echo 'not completed';
+            echo $task->completed_at;
+            die;
             $task->completed_at = null;
         }
+
+        echo 'completed_at: ' . $task->completed_at;
+        die;    
 
         activity()
             ->causedBy($user)
