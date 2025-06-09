@@ -651,19 +651,46 @@ class TaskController extends Controller
 
         $tasks = Task::where('team_id', $teamId)
             ->where('is_backlog', false)
-            ->with(['members', 'attachments'])
+            ->with(['members', 'attachments', 'team.project'])
             ->get()
             ->map(function ($task) {
-                $taskData = $task->toArray();
-                $taskData['is_overdue'] = $task->is_overdue;
-                $taskData['completed_on_time'] = $task->completed_at && $task->deadline 
-                    ? $task->completed_at->lessThanOrEqualTo($task->deadline)
-                    : null;
-                $taskData['completion_status'] = $this->getCompletionStatus($task);
-                return $taskData;
+                return [
+                    'id' => $task->id,
+                    'name' => $task->name,
+                    'description' => $task->description,
+                    'tags' => $task->tags,
+                    'priority' => $task->priority,
+                    'deadline' => $task->deadline,
+                    'status' => $task->status,
+                    'status_text' => $task->status_text,
+                    'is_overdue' => $task->is_overdue,
+                    'completed_at' => $task->completed_at,
+                    'completed_on_time' => $task->completed_at && $task->deadline 
+                        ? $task->completed_at->lessThanOrEqualTo($task->deadline)
+                        : null,
+                    'completion_status' => $this->getCompletionStatus($task),
+                    'team_id' => $task->team_id,
+                    'created_at' => $task->created_at,
+                    'updated_at' => $task->updated_at,
+                    'members' => $task->members->map(function ($member) {
+                        return [
+                            'id' => $member->id,
+                            'name' => $member->name,
+                            'color' => $this->getMemberColor($member->id),
+                        ];
+                    }),
+                    'attachments' => $task->attachments->map(function ($attachment) {
+                        return [
+                            'id' => $attachment->id,
+                            'name' => $attachment->name,
+                            'media' => $attachment->media,
+                            'created_at' => $attachment->created_at,
+                        ];
+                    }),
+                ];
             });
 
-        return $this->success(['tasks' => $tasks]);
+        return $this->success(['tasks' => $tasks], 'Team tasks retrieved successfully.');
     }
 
     public function getAllTasks(Request $request)
@@ -672,7 +699,7 @@ class TaskController extends Controller
 
         $query = Task::query()
             ->where('is_backlog', false)
-            ->with(['members', 'team', 'attachments']);
+            ->with(['members', 'team.project', 'attachments']);
 
         // Filter by team if specified
         if ($request->has('team_id')) {
@@ -720,17 +747,48 @@ class TaskController extends Controller
         });
 
         $tasks = $query->get()
-            ->map(function ($task) {
-                $taskData = $task->toArray();
-                $taskData['is_overdue'] = $task->is_overdue;
-                $taskData['completed_on_time'] = $task->completed_at && $task->deadline 
-                    ? $task->completed_at->lessThanOrEqualTo($task->deadline)
-                    : null;
-                $taskData['completion_status'] = $this->getCompletionStatus($task);
-                return $taskData;
+            ->map(function ($task) use ($user) {
+                return [
+                    'id' => $task->id,
+                    'name' => $task->name,
+                    'description' => $task->description,
+                    'tags' => $task->tags,
+                    'priority' => $task->priority,
+                    'deadline' => $task->deadline,
+                    'status' => $task->status,
+                    'status_text' => $task->status_text,
+                    'is_overdue' => $task->is_overdue,
+                    'completed_at' => $task->completed_at,
+                    'completed_on_time' => $task->completed_at && $task->deadline 
+                        ? $task->completed_at->lessThanOrEqualTo($task->deadline)
+                        : null,
+                    'completion_status' => $this->getCompletionStatus($task),
+                    'team_id' => $task->team_id,
+                    'project_id' => $task->team->project_id,
+                    'team_name' => $task->team->name,
+                    'project_name' => $task->team->project->name,
+                    'assigned_to_me' => $task->members->contains('id', $user->id),
+                    'created_at' => $task->created_at,
+                    'updated_at' => $task->updated_at,
+                    'members' => $task->members->map(function ($member) {
+                        return [
+                            'id' => $member->id,
+                            'name' => $member->name,
+                            'color' => $this->getMemberColor($member->id),
+                        ];
+                    }),
+                    'attachments' => $task->attachments->map(function ($attachment) {
+                        return [
+                            'id' => $attachment->id,
+                            'name' => $attachment->name,
+                            'media' => $attachment->media,
+                            'created_at' => $attachment->created_at,
+                        ];
+                    }),
+                ];
             });
 
-        return $this->success(['tasks' => $tasks]);
+        return $this->success(['tasks' => $tasks], 'All tasks retrieved successfully.');
     }
 
     /**
