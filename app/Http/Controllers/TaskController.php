@@ -1140,78 +1140,130 @@ class TaskController extends Controller
             return $this->error($validator->errors()->first(), 422);
         }
 
-        $task = Task::findOrFail($taskId);
+        $task = Task::find($taskId);
+        if (!$task) {
+            return $this->error('Task not found.', 404);
+        }
 
-        // Check if user is assigned to the task or is a team leader/manager
-        $isAssigned = $task->members()->where('user_id', $user->id)->exists();
-        $isLeader = DB::table('project_role_user')
+        $isTaskMember = DB::table('task_members')
+            ->where('task_id', $taskId)
+            ->where('user_id', $user->id)
+            ->exists();
+
+        $isTeamLeader = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('team_id', $task->team_id)
             ->where('role_id', Role::ROLE_LEADER)
             ->exists();
-        $isManager = DB::table('project_role_user')
+
+        $isProjectManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('project_id', $task->team->project_id)
             ->where('role_id', Role::ROLE_MANAGER)
             ->whereNull('team_id')
             ->exists();
 
-        if (!$isAssigned && !$isLeader && !$isManager) {
-            return $this->error('You are not authorized to update this task\'s status.', 403);
+        if (!$isTaskMember && !$isTeamLeader && !$isProjectManager) {
+            return $this->error('You are not authorized to update the task status.', 403);
         }
 
         $oldStatus = $task->status;
         $newStatus = $request->status;
 
-        DB::beginTransaction();
-        try {
-            // Update completed_at timestamp based on status change
-            if ($newStatus === Task::STATUS_COMPLETED) {
-                if (!$task->completed_at) {
-                    $task->completed_at = now();
-                }
-            } elseif ($oldStatus === Task::STATUS_COMPLETED && $newStatus !== Task::STATUS_COMPLETED) {
-                $task->completed_at = null;
-            }
-
-            $task->status = $newStatus;
-            $task->save();
-
-            // Log the status change
-            activity()
-                ->causedBy($user)
-                ->performedOn($task)
-                ->withProperties([
-                    'old_status' => Task::$statusTexts[$oldStatus],
-                    'new_status' => Task::$statusTexts[$newStatus],
-                    'completed_at' => $task->completed_at,
-                ])
-                ->event('status_updated')
-                ->log('Task status updated');
-
-            // Notify task members about the status change
-            foreach ($task->members as $member) {
-                if ($member->id !== $user->id) {
-                    $member->notify(new TaskStatusUpdatedNotification($task, $user));
-                }
-            }
-
-            DB::commit();
-
-            // Include completion status and overdue information in response
-            $taskData = $task->toArray();
-            $taskData['is_overdue'] = $task->is_overdue;
-            $taskData['completed_on_time'] = $task->completed_at && $task->deadline 
-                ? $task->completed_at->lessThanOrEqualTo($task->deadline)
-                : null;
-
-            return $this->success(
-                ['task' => $taskData],
-                'Task status updated successfully.'
-            );
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return $this->error('Failed to update task status: ' . $e->getMessage(), 500);
+        // Handle completed_at timestamp
+        if ($newStatus === Task::STATUS_COMPLETED && $oldStatus !== Task::STATUS_COMPLETED) {
+            $task->completed_at = now();
+        } elseif ($oldStatus === Task::STATUS_COMPLETED && $newStatus !== Task::STATUS_COMPLETED) {
+            $task->completed_at = null;
         }
+
+        activity()
+            ->causedBy($user)
+            ->performedOn($task)
+            ->withProperties([
+                'old_status' => $task->status_text,
+                'new_status' => Task::$statusTexts[$newStatus],
+                'completed_at' => $task->completed_at
+            ])
+            ->event('updated')
+            ->log('Task status updated');
+
+        $task->status = $newStatus;
+        $task->save();
+
+        // Send notifications
+        $teamLeader = DB::table('project_role_user')
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->join('users', 'project_role_user.user_id', '=', 'users.id')
+            ->select('users.*')
+            ->first();
+
+        $taskMembers = $task->members;
+
+        if ($teamLeader) {
+            $notification = Notification::create([
+                'user_id' => $teamLeader->id,
+                'message' => "Task status updated: {$task->name} is now {$task->status_text}",
+                'type' => 'info',
+                'read' => false,
+                'action_url' => NULL,
+                'metadata' => [
+                    'task_id' => $task->id,
+                    'task_name' => $task->name,
+                    'team_id' => $task->team_id,
+                    'new_status' => $task->status_text,
+                    'completed_at' => $task->completed_at,
+                    'completed_on_time' => $task->completed_at && $task->deadline 
+                        ? $task->completed_at->lessThanOrEqualTo($task->deadline)
+                        : null,
+                ],
+            ]);
+
+            event(new NotificationSent($notification));
+        }
+
+        foreach ($taskMembers as $member) {
+            if ($member->id !== $user->id) {
+                $notification = Notification::create([
+                    'user_id' => $member->id,
+                    'message' => "Task status updated: {$task->name} is now {$task->status_text}",
+                    'type' => 'info',
+                    'read' => false,
+                    'action_url' => NULL,
+                    'metadata' => [
+                        'task_id' => $task->id,
+                        'task_name' => $task->name,
+                        'team_id' => $task->team_id,
+                        'new_status' => $task->status_text,
+                        'completed_at' => $task->completed_at,
+                        'completed_on_time' => $task->completed_at && $task->deadline 
+                            ? $task->completed_at->lessThanOrEqualTo($task->deadline)
+                            : null,
+                    ],
+                ]);
+
+                event(new NotificationSent($notification));
+            }
+        }
+
+        // Enhanced response with additional task information
+        return $this->success([
+            'status' => $task->status,
+            'status_text' => $task->status_text,
+            'completed_at' => $task->completed_at,
+            'completed_on_time' => $task->completed_at && $task->deadline 
+                ? $task->completed_at->lessThanOrEqualTo($task->deadline)
+                : null,
+            'is_overdue' => $task->deadline && !$task->is_backlog && 
+                ($task->status !== Task::STATUS_COMPLETED || 
+                ($task->completed_at && $task->completed_at->greaterThan($task->deadline))),
+            'deadline' => $task->deadline,
+            'updated_at' => $task->updated_at,
+            'updated_by' => [
+                'id' => $user->id,
+                'name' => $user->name
+            ]
+        ], 'Task status updated successfully.');
     }
 }
