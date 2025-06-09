@@ -2,15 +2,15 @@
 
 namespace App\Notifications;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
 use App\Models\Task;
 use App\Models\User;
-use Illuminate\Notifications\Messages\BroadcastMessage;
+use App\Models\Notification;
+use Illuminate\Bus\Queueable;
+use App\Events\NotificationSent;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Notification as BaseNotification;
 
-class TaskStatusUpdatedNotification extends Notification implements ShouldQueue
+class TaskStatusUpdatedNotification extends BaseNotification implements ShouldQueue
 {
     use Queueable;
 
@@ -28,7 +28,10 @@ class TaskStatusUpdatedNotification extends Notification implements ShouldQueue
         return ['database', 'broadcast'];
     }
 
-    public function toArray($notifiable)
+    /**
+     * Handle storing the notification in the database.
+     */
+    public function toDatabase($notifiable)
     {
         $statusMessage = "Task '{$this->task->name}' is now {$this->task->status_text}";
         
@@ -41,38 +44,47 @@ class TaskStatusUpdatedNotification extends Notification implements ShouldQueue
             $statusMessage .= $completionStatus;
         }
 
-        return [
-            'task_id' => $this->task->id,
-            'task_name' => $this->task->name,
-            'team_id' => $this->task->team_id,
-            'new_status' => $this->task->status_text,
-            'updated_by' => [
-                'id' => $this->updatedBy->id,
-                'name' => $this->updatedBy->name,
-            ],
-            'completed_at' => $this->task->completed_at,
-            'is_overdue' => $this->task->is_overdue,
+        // Create notification using your custom Notification model
+        $notification = Notification::create([
+            'user_id' => $notifiable->id,
             'message' => $statusMessage,
-            'type' => 'task_status_update',
-        ];
+            'type' => 'info',
+            'read' => false,
+            'action_url' => null,
+            'metadata' => [
+                'task_id' => $this->task->id,
+                'task_name' => $this->task->name,
+                'team_id' => $this->task->team_id,
+                'new_status' => $this->task->status_text,
+                'updated_by' => [
+                    'id' => $this->updatedBy->id,
+                    'name' => $this->updatedBy->name,
+                ],
+                'completed_at' => $this->task->completed_at,
+                'is_overdue' => $this->task->is_overdue,
+                'type' => 'task_status_update'
+            ]
+        ]);
+
+        // Broadcast the notification
+        event(new NotificationSent($notification));
+
+        return $notification;
     }
 
+    /**
+     * Get the broadcastable representation of the notification.
+     */
     public function toBroadcast($notifiable)
     {
-        return new BroadcastMessage($this->toArray($notifiable));
-    }
-
-    public function toMail($notifiable)
-    {
-        return (new MailMessage)
-            ->subject('Task Status Updated: ' . $this->task->name)
-            ->line('The status of the task has been updated.')
-            ->line('**Task Details:**')
-            ->line('Name: ' . $this->task->name)
-            ->line('Description: ' . $this->task->description)
-            ->line('Priority: ' . ucfirst($this->task->priority))
-            ->line('Deadline: ' . $this->task->deadline)
-            ->line('**New Status:** ' . $this->task->status_text)
-            ->action('View Task', 'https://brainmate.vercel.app');
+        $notification = $this->toDatabase($notifiable);
+        
+        return [
+            'id' => $notification->id,
+            'message' => $notification->message,
+            'type' => $notification->type,
+            'metadata' => $notification->metadata,
+            'created_at' => $notification->created_at
+        ];
     }
 }

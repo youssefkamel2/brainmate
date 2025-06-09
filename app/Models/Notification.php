@@ -15,11 +15,12 @@ class Notification extends Model
         'type',
         'read',
         'action_url',
-        'metadata',
+        'metadata'
     ];
 
     protected $casts = [
-        'metadata' => 'array', // Automatically cast metadata to an array
+        'read' => 'boolean',
+        'metadata' => 'array'
     ];
 
     // Relationship with the User model
