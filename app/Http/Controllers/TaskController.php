@@ -663,7 +663,9 @@ class TaskController extends Controller
                     'deadline' => $task->deadline,
                     'status' => $task->status,
                     'status_text' => $task->status_text,
-                    'is_overdue' => $task->is_overdue,
+                    'is_overdue' => $task->deadline && !$task->is_backlog && 
+                    ($task->status !== Task::STATUS_COMPLETED || 
+                    ($task->completed_at && $task->completed_at->greaterThan($task->deadline))),
                     'completed_at' => $task->completed_at,
                     'completed_on_time' => $task->completed_at && $task->deadline 
                         ? $task->completed_at->lessThanOrEqualTo($task->deadline)
@@ -757,7 +759,9 @@ class TaskController extends Controller
                     'deadline' => $task->deadline,
                     'status' => $task->status,
                     'status_text' => $task->status_text,
-                    'is_overdue' => $task->is_overdue,
+                    'is_overdue' => $task->deadline && !$task->is_backlog && 
+                    ($task->status !== Task::STATUS_COMPLETED || 
+                    ($task->completed_at && $task->completed_at->greaterThan($task->deadline))),
                     'completed_at' => $task->completed_at,
                     'completed_on_time' => $task->completed_at && $task->deadline 
                         ? $task->completed_at->lessThanOrEqualTo($task->deadline)
@@ -975,15 +979,20 @@ class TaskController extends Controller
             'tags' => $task->tags,
             'priority' => $task->priority,
             'deadline' => $task->deadline,
+            'created_at' => $task->created_at,
+            'completed_at' => $task->completed_at,
+            'updated_at' => $task->updated_at,
+            'completed_on_time' => $task->completed_at && $task->deadline 
+                ? $task->completed_at->lessThanOrEqualTo($task->deadline)
+                : null,
             'status' => $task->status,
             'team_id' => $task->team_id,
             'team_name' => $task->team->name,
             'project_name' => $task->team->project->name,
-            'created_at' => $task->created_at,
-            'updated_at' => $task->updated_at,
             'assigned_to_me' => $task->members->contains('id', $user->id),
-            'role' => $isManager ? 'manager' : ($isLeader ? 'leader' : 'member'),
-            'is_overdue' => $task->is_overdue,
+            'is_overdue' => $task->deadline && !$task->is_backlog && 
+            ($task->status !== Task::STATUS_COMPLETED || 
+            ($task->completed_at && $task->completed_at->greaterThan($task->deadline))),
             'members' => $task->members->map(function ($member) use ($task) {
                 return [
                     'id' => $member->id,
