@@ -901,8 +901,8 @@ class TaskController extends Controller
                     if ($log->subject_type === Task::class) {
                         $properties = json_decode($log->properties, true);
                         if (isset($properties['old_status']) && isset($properties['new_status'])) {
-                            $oldStatus = Task::$statusTexts[$properties['old_status']] ?? 'unknown';
-                            $newStatus = Task::$statusTexts[$properties['new_status']] ?? 'unknown';
+                            $oldStatus = $properties['old_status'] ?? 'unknown';
+                            $newStatus = $properties['new_status'] ?? 'unknown';
                             $description = "changed the task status from {$oldStatus} to {$newStatus}.";
                         } else {
                             $description = "updated the task.";
