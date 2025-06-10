@@ -119,12 +119,13 @@ class Task extends Model
             return false;
         }
 
-        if ($this->is_completed) {
-            // If task is completed, check if it was completed after the deadline
+        // If task is completed, check if it was completed after the deadline
+        if ($this->status === self::STATUS_COMPLETED) {
             return $this->completed_at && $this->completed_at->greaterThan($this->deadline);
         }
 
-        if ($this->is_cancelled) {
+        // If task is cancelled, it's not overdue
+        if ($this->status === self::STATUS_CANCELLED) {
             return false;
         }
 
