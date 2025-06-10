@@ -13,6 +13,7 @@ use App\Models\TaskMember;
 use App\Models\Notification;
 use Illuminate\Http\Request;
 use App\Traits\ResponseTrait;
+use Illuminate\Support\Carbon;
 use App\Events\NotificationSent;
 use App\Traits\MemberColorTrait;
 use Illuminate\Support\Facades\DB;
@@ -110,11 +111,13 @@ class TaskController extends Controller
 
         if ($request->is_backlog) {
             $taskData['duration_days'] = $request->duration_days;
-            $taskData['deadline'] = today()->addDays($request->duration_days);
+            // Set deadline to end of day (23:59:59) after duration_days
+            $taskData['deadline'] = today()->addDays($request->duration_days)->endOfDay();
         } else {
-            $taskData['deadline'] = $request->deadline;
-            // If no deadline is provided, set it = deadline - today's date
-            $taskData['duration_days'] = $request->duration_days ?? now()->diffInDays($request->deadline);
+            // For regular tasks, set deadline to end of the specified day
+            $taskData['deadline'] = $request->deadline ? Carbon::parse($request->deadline)->endOfDay() : null;
+            // Calculate duration days based on end of day
+            $taskData['duration_days'] = $request->duration_days ?? ($request->deadline ? now()->diffInDays(Carbon::parse($request->deadline)->endOfDay()) : null);
         }
 
         $task = Task::create($taskData);
