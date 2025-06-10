@@ -663,7 +663,7 @@ class TaskController extends Controller
                     'deadline' => $task->deadline,
                     'status' => $task->status,
                     'status_text' => $task->status_text,
-                    'is_overdue' => $task->getIsOverdueAttribute(),
+                    'is_overdue' => $task->is_overdue,
                     'completed_at' => $task->completed_at,
                     'completed_on_time' => $task->completed_at && $task->deadline 
                         ? $task->completed_at->lessThanOrEqualTo($task->deadline)
@@ -762,7 +762,6 @@ class TaskController extends Controller
                     'completed_on_time' => $task->completed_at && $task->deadline 
                         ? $task->completed_at->lessThanOrEqualTo($task->deadline)
                         : null,
-                    'completion_status' => $this->getCompletionStatus($task),
                     'team_id' => $task->team_id,
                     'project_id' => $task->team->project_id,
                     'team_name' => $task->team->name,

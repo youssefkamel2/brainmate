@@ -17,6 +17,11 @@ class Task extends Model
         'published_at' => 'datetime',
         'completed_at' => 'datetime',
         'is_backlog' => 'boolean',
+        'is_overdue' => 'boolean',
+        'is_completed' => 'boolean',
+        'is_cancelled' => 'boolean',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     // Define status constants as numbers
@@ -118,26 +123,20 @@ class Task extends Model
         if (!$this->deadline || $this->is_backlog) {
             return false;
         }
-    
-        $deadline = $this->deadline instanceof \Carbon\Carbon
-            ? $this->deadline
-            : \Carbon\Carbon::parse($this->deadline);
-    
-        if ($this->status === self::STATUS_COMPLETED && $this->completed_at) {
-            $completedAt = $this->completed_at instanceof \Carbon\Carbon
-                ? $this->completed_at
-                : \Carbon\Carbon::parse($this->completed_at);
-    
-            return $completedAt->greaterThan($deadline);
+
+        // If task is completed, check if it was completed after the deadline
+        if ($this->status == self::STATUS_COMPLETED) {
+            return $this->completed_at && $this->completed_at->greaterThan($this->deadline);
         }
-    
-        if ($this->status === self::STATUS_CANCELLED) {
+
+        // If task is cancelled, it's not overdue
+        if ($this->status == self::STATUS_CANCELLED) {
             return false;
         }
-    
-        return now()->greaterThan($deadline);
+
+        // For active tasks, check if current time is past the deadline
+        return now()->greaterThan($this->deadline);
     }
-    
 
     /**
      * Scope a query to only include backlog tasks.
