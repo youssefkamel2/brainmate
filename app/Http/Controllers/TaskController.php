@@ -693,101 +693,67 @@ class TaskController extends Controller
         return $this->success(['tasks' => $tasks], 'Team tasks retrieved successfully.');
     }
 
-    public function getAllTasks(Request $request)
+
+        public function getAllTasks(Request $request)
     {
+        // Get the authenticated user
         $user = Auth::user();
 
-        $query = Task::query()
-            ->where('is_backlog', false)
-            ->with(['members', 'team.project', 'attachments']);
+        // Step 1: Get all projects where the user is a manager
+        $managedProjects = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->pluck('project_id');
 
-        // Filter by team if specified
-        if ($request->has('team_id')) {
-            $query->where('team_id', $request->team_id);
+        // Step 2: Get all teams where the user is a member or leader
+        $teamIds = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->whereIn('role_id', [Role::ROLE_MEMBER, Role::ROLE_LEADER])
+            ->pluck('team_id')
+            ->toArray();
+
+        // Step 3: If the user is a project manager, include all teams in the projects they manage
+        if ($managedProjects->isNotEmpty()) {
+            $managedTeamIds = Team::whereIn('project_id', $managedProjects)
+                ->pluck('id')
+                ->toArray();
+
+            // Merge the team IDs from managed projects with the user's team IDs
+            $teamIds = array_unique(array_merge($teamIds, $managedTeamIds));
         }
 
-        // Filter by status if specified
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
+        // Get all tasks in these teams
+        $tasks = Task::whereIn('team_id', $teamIds)->active()->get();
 
-        // Filter by priority if specified
-        if ($request->has('priority')) {
-            $query->where('priority', $request->priority);
-        }
-
-        // Filter by deadline range if specified
-        if ($request->has('deadline_start') && $request->has('deadline_end')) {
-            $query->whereBetween('deadline', [$request->deadline_start, $request->deadline_end]);
-        }
-
-        // Filter overdue tasks if specified
-        if ($request->has('is_overdue') && $request->boolean('is_overdue')) {
-            $query->where('deadline', '<', now())
-                ->where(function ($q) {
-                    $q->where('status', '!=', Task::STATUS_COMPLETED)
-                        ->orWhere(function ($q) {
-                            $q->where('status', Task::STATUS_COMPLETED)
-                                ->whereNotNull('completed_at')
-                                ->whereColumn('completed_at', '>', 'deadline');
-                        });
-                });
-        }
-
-        // Get tasks where user is a member or has team/project level access
-        $query->where(function ($q) use ($user) {
-            $q->whereHas('members', function ($q) use ($user) {
-                $q->where('user_id', $user->id);
-            })
-            ->orWhereHas('team', function ($q) use ($user) {
-                $q->whereHas('projectRoleUsers', function ($q) use ($user) {
-                    $q->where('user_id', $user->id);
-                });
-            });
+        // Format the response
+        $formattedTasks = $tasks->map(function ($task) use ($user) {
+            return [
+                'id' => $task->id,
+                'name' => $task->name,
+                'description' => $task->description,
+                'tags' => $task->tags,
+                'priority' => $task->priority,
+                'deadline' => $task->deadline,
+                'status' => $task->status,
+                'is_overdue' => $task->is_overdue, // Add the overdue flag
+                'team_id' => $task->team_id,
+                'project_id' => $task->team->project_id,
+                'team_name' => $task->team->name,
+                'project_name' => $task->team->project->name,
+                'assigned_to_me' => $task->members->contains('id', $user->id),
+                'created_at' => $task->created_at, // Include created_at
+                'updated_at' => $task->updated_at,
+                'members' => $task->members->map(function ($member) {
+                    return [
+                        'id' => $member->id,
+                        'name' => $member->name,
+                        'color' => $this->getMemberColor($member->id),
+                    ];
+                }),
+            ];
         });
 
-        $tasks = $query->get()
-            ->map(function ($task) use ($user) {
-                return [
-                    'id' => $task->id,
-                    'name' => $task->name,
-                    'description' => $task->description,
-                    'tags' => $task->tags,
-                    'priority' => $task->priority,
-                    'deadline' => $task->deadline,
-                    'status' => $task->status,
-                    'status_text' => $task->status_text,
-                    'is_overdue' => $task->is_overdue,
-                    'completed_at' => $task->completed_at,
-                    'completed_on_time' => $task->completed_at && $task->deadline 
-                        ? $task->completed_at->lessThanOrEqualTo($task->deadline)
-                        : null,
-                    'team_id' => $task->team_id,
-                    'project_id' => $task->team->project_id,
-                    'team_name' => $task->team->name,
-                    'project_name' => $task->team->project->name,
-                    'assigned_to_me' => $task->members->contains('id', $user->id),
-                    'created_at' => $task->created_at,
-                    'updated_at' => $task->updated_at,
-                    'members' => $task->members->map(function ($member) {
-                        return [
-                            'id' => $member->id,
-                            'name' => $member->name,
-                            'color' => $this->getMemberColor($member->id),
-                        ];
-                    }),
-                    'attachments' => $task->attachments->map(function ($attachment) {
-                        return [
-                            'id' => $attachment->id,
-                            'name' => $attachment->name,
-                            'media' => $attachment->media,
-                            'created_at' => $attachment->created_at,
-                        ];
-                    }),
-                ];
-            });
-
-        return $this->success(['tasks' => $tasks], 'All tasks retrieved successfully.');
+        return $this->success(['tasks' => $formattedTasks], 'All tasks retrieved successfully.');
     }
 
     /**
