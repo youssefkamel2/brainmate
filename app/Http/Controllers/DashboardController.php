@@ -637,12 +637,20 @@ class DashboardController extends Controller
         }
 
         // Check if user is a leader or manager of this team
-        $isLeaderOrManager = $user->roles()
-            ->where('team_id', $team->id)
-            ->whereIn('role_id', [Role::ROLE_LEADER, Role::ROLE_MANAGER])
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id')
             ->exists();
 
-        if (!$isLeaderOrManager) {
+        $isLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $request->team_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->exists();
+
+        if (!$isLeader && !$isManager) {
             return $this->error('Not authorized to view this data.', 403);
         }
 
