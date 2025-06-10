@@ -25,7 +25,6 @@ use Spatie\Activitylog\Facades\CauserResolver;
 use App\Notifications\TaskAssignedNotification;
 use App\Notifications\TaskNoteAddedNotification;
 use App\Notifications\TaskStatusUpdatedNotification;
-use Spatie\Activitylog\Models\Activity;
 
 
 class TaskController extends Controller
@@ -664,9 +663,7 @@ class TaskController extends Controller
                     'deadline' => $task->deadline,
                     'status' => $task->status,
                     'status_text' => $task->status_text,
-                    'is_overdue' => $task->deadline && !$task->is_backlog && 
-                    ($task->status !== Task::STATUS_COMPLETED || 
-                    ($task->completed_at && $task->completed_at->greaterThan($task->deadline))),
+                    'is_overdue' => $task->getIsOverdueAttribute(),
                     'completed_at' => $task->completed_at,
                     'completed_on_time' => $task->completed_at && $task->deadline 
                         ? $task->completed_at->lessThanOrEqualTo($task->deadline)
@@ -760,9 +757,7 @@ class TaskController extends Controller
                     'deadline' => $task->deadline,
                     'status' => $task->status,
                     'status_text' => $task->status_text,
-                    'is_overdue' => $task->deadline && !$task->is_backlog && 
-                    ($task->status !== Task::STATUS_COMPLETED || 
-                    ($task->completed_at && $task->completed_at->greaterThan($task->deadline))),
+                    'is_overdue' => $task->is_overdue,
                     'completed_at' => $task->completed_at,
                     'completed_on_time' => $task->completed_at && $task->deadline 
                         ? $task->completed_at->lessThanOrEqualTo($task->deadline)
@@ -818,41 +813,162 @@ class TaskController extends Controller
 
     public function getTaskById($taskId)
     {
+        // Get the authenticated user
         $user = Auth::user();
 
-        $task = Task::with(['members', 'notes', 'attachments', 'team.project'])
-            ->where('id', $taskId)
-            ->first();
+        // Retrieve the task with its members, notes, and attachments
+        $task = Task::with([
+            'members',
+            'notes' => function ($query) {
+                $query->orderBy('created_at', 'desc'); // Sort notes by created_at in descending order
+            },
+            'notes.user', // Load the user relationship for each note
+            'attachments'
+        ])->find($taskId);
 
         if (!$task) {
             return $this->error('Task not found.', 404);
         }
 
-        // Check if user is authorized to view the task
-        $isTaskMember = $task->members()->where('user_id', $user->id)->exists();
-        $isTeamMember = DB::table('project_role_user')
-            ->where('user_id', $user->id)
-            ->where('team_id', $task->team_id)
-            ->exists();
-        $isProjectManager = DB::table('project_role_user')
+        // Check if the user is authorized to view the task
+        $isManager = DB::table('project_role_user')
             ->where('user_id', $user->id)
             ->where('project_id', $task->team->project_id)
             ->where('role_id', Role::ROLE_MANAGER)
-            ->whereNull('team_id')
+            ->whereNull('team_id') // Manager has team_id = null
             ->exists();
 
-        if (!$isTaskMember && !$isTeamMember && !$isProjectManager) {
-            return $this->error('You are not authorized to view this task.', 403);
+        $isLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->exists();
+
+        $isMember = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $task->team_id)
+            ->where('role_id', Role::ROLE_MEMBER)
+            ->exists();
+
+        if (!$isManager && !$isLeader && !$isMember) {
+            return $this->error('You are not part of this team.', 403);
         }
 
-        // Log task view
-        activity()
-            ->causedBy($user)
-            ->performedOn($task)
-            ->event('viewed')
-            ->log('viewed the task.');
+        // Log the view event only if the user hasn't viewed the task before
+        $hasViewed = \Spatie\Activitylog\Models\Activity::where('subject_type', Task::class)
+            ->where('subject_id', $task->id)
+            ->where('causer_id', $user->id)
+            ->where('event', 'viewed')
+            ->exists();
 
-        $taskData = [
+        if (!$hasViewed) {
+            activity()
+                ->causedBy($user)
+                ->performedOn($task)
+                ->event('viewed')
+                ->log('Task viewed');
+        }
+
+        // Retrieve logs related to the task, notes, and attachments
+        $logs = \Spatie\Activitylog\Models\Activity::where(function ($query) use ($task) {
+            $query->where('subject_type', Task::class)
+                ->where('subject_id', $task->id)
+                ->orWhere('subject_type', TaskNote::class)
+                ->whereIn('subject_id', $task->notes->pluck('id'))
+                ->orWhere('subject_type', Attachment::class)
+                ->whereIn('subject_id', $task->attachments->pluck('id'));
+        })
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Filter logs based on the user's role
+        $filteredLogs = $logs->filter(function ($log) use ($user, $task) {
+            $causerRole = $log->causer ? $log->causer->getRoleInTeam($task->team->project_id) : null;
+
+            // If the log causer is the current user, always include it
+            if ($log->causer_id === $user->id) {
+                return true;
+            }
+
+            // Get the current user's role in the project
+            $userRole = $user->getRoleInTeam($task->team->project_id);
+
+            // If the current user is a manager, include all logs
+            if ($userRole === 'manager') {
+                return true;
+            }
+
+            // If the current user is a leader, include logs from themselves, members, and other leaders
+            if ($userRole === 'leader') {
+                return in_array($causerRole, ['member', 'leader']);
+            }
+
+            // If the current user is a member, include logs from themselves and other members
+            if ($userRole === 'member') {
+                return $causerRole === 'member';
+            }
+
+            return false;
+        });
+
+        // Format the filtered logs for display
+        $formattedLogs = $filteredLogs->map(function ($log) use ($task) {
+            $description = $log->description;
+            $userName = $log->causer ? $log->causer->name : 'System';
+
+            switch ($log->event) {
+                case 'created':
+                    if ($log->subject_type === Task::class) {
+                        $description = "created the task.";
+                    } elseif ($log->subject_type === Attachment::class) {
+                        $attachmentName = $log->subject ? $log->subject->name : 'an attachment';
+                        $description = "added an attachment: {$attachmentName}.";
+                    } elseif ($log->subject_type === TaskNote::class) {
+                        $noteDescription = $log->subject ? $log->subject->description : 'a note';
+                        $description = "added a note: {$noteDescription}.";
+                    }
+                    break;
+
+                case 'updated':
+                    if ($log->subject_type === Task::class) {
+                        $properties = json_decode($log->properties, true);
+                        if (isset($properties['old_status']) && isset($properties['new_status'])) {
+                            $oldStatus = Task::$statusTexts[$properties['old_status']] ?? 'unknown';
+                            $newStatus = Task::$statusTexts[$properties['new_status']] ?? 'unknown';
+                            $description = "changed the task status from {$oldStatus} to {$newStatus}.";
+                        } else {
+                            $description = "updated the task.";
+                        }
+                    }
+                    break;
+
+                case 'viewed':
+                    $description = "viewed the task.";
+                    break;
+
+                case 'deleted':
+                    if ($log->subject_type === Attachment::class) {
+                        $attachmentName = $log->subject ? $log->subject->name : 'an attachment';
+                        $description = "removed an attachment: {$attachmentName}.";
+                    }
+                    break;
+            }
+
+            return [
+                'id' => $log->id,
+                'description' => $description,
+                'event' => $log->event,
+                'user' => $log->causer ? [
+                    'id' => $log->causer->id,
+                    'name' => $log->causer->name,
+                    'color' => $this->getMemberColor($log->causer->id),
+                ] : null,
+                'created_at' => $log->created_at,
+            ];
+        });
+
+        // Format the response
+        $formattedTask = [
             'id' => $task->id,
             'name' => $task->name,
             'description' => $task->description,
@@ -869,27 +985,29 @@ class TaskController extends Controller
             'team_id' => $task->team_id,
             'team_name' => $task->team->name,
             'project_name' => $task->team->project->name,
-            'assigned_to_me' => $isTaskMember,
+            'assigned_to_me' => $task->members->contains('id', $user->id),
+            'role' => $isManager ? 'manager' : ($isLeader ? 'leader' : 'member'),
             'is_overdue' => $task->is_overdue,
-            'members' => $task->members->map(function ($member) {
+            'members' => $task->members->map(function ($member) use ($task) {
                 return [
                     'id' => $member->id,
                     'name' => $member->name,
                     'email' => $member->email,
                     'color' => $this->getMemberColor($member->id),
-                    'role' => $this->getMemberRole($member->id, $task->team_id)
+                    'role' => $member->getRoleInTeam($task->team->project_id),
                 ];
             }),
             'notes' => $task->notes->map(function ($note) {
                 return [
                     'id' => $note->id,
-                    'content' => $note->content,
+                    'description' => $note->description,
                     'created_at' => $note->created_at,
                     'user' => [
                         'id' => $note->user->id,
                         'name' => $note->user->name,
-                        'color' => $this->getMemberColor($note->user->id)
-                    ]
+                        'email' => $note->user->email,
+                        'color' => $this->getMemberColor($note->user->id),
+                    ],
                 ];
             }),
             'attachments' => $task->attachments->map(function ($attachment) {
@@ -897,29 +1015,14 @@ class TaskController extends Controller
                     'id' => $attachment->id,
                     'name' => $attachment->name,
                     'media' => $attachment->media,
-                    'created_at' => $attachment->created_at
+                    'created_at' => $attachment->created_at,
+                    'updated_at' => $attachment->updated_at,
                 ];
             }),
-            'logs' => Activity::where('subject_type', Task::class)
-                ->where('subject_id', $task->id)
-                ->orderByDesc('created_at')
-                ->get()
-                ->map(function ($log) {
-                    return [
-                        'id' => $log->id,
-                        'description' => $log->description,
-                        'event' => $log->event,
-                        'user' => [
-                            'id' => $log->causer->id,
-                            'name' => $log->causer->name,
-                            'color' => $this->getMemberColor($log->causer->id)
-                        ],
-                        'created_at' => $log->created_at
-                    ];
-                })
+            'logs' => $formattedLogs->values(), // Reset keys for JSON response
         ];
 
-        return $this->success(['task' => $taskData], 'Task retrieved successfully.');
+        return $this->success(['task' => $formattedTask], 'Task retrieved successfully.');
     }
 
     // ============= task notes ============
