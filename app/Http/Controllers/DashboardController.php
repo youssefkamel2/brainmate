@@ -421,108 +421,6 @@ class DashboardController extends Controller
     }
 
     /**
-     * Get task counts by status for the user (optionally filtered by project)
-     */
-    // protected function getUserTaskCounts(User $user, $projectId = null)
-    // {
-    //     $query = TaskMember::where('user_id', $user->id)
-    //         ->join('tasks', 'task_members.task_id', '=', 'tasks.id');
-
-    //     if ($projectId) {
-    //         $query->join('teams', 'tasks.team_id', '=', 'teams.id')
-    //             ->where('teams.project_id', $projectId);
-    //     }
-
-    //     return $query->select('tasks.status', DB::raw('count(*) as count'))
-    //         ->groupBy('tasks.status')
-    //         ->pluck('count', 'status')
-    //         ->toArray();
-    // }
-
-    /**
-     * Get completion trend (tasks completed per month for last year)
-     */
-    // protected function getCompletionTrend(User $user)
-    // {
-    //     $startDate = now()->subYear()->startOfMonth();
-    //     $endDate = now()->endOfMonth();
-
-    //     $completionData = TaskMember::where('user_id', $user->id)
-    //         ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
-    //         ->where('tasks.status', Task::STATUS_COMPLETED)
-    //         ->whereBetween('tasks.updated_at', [$startDate, $endDate])
-    //         ->select(
-    //             DB::raw('YEAR(tasks.updated_at) as year'),
-    //             DB::raw('MONTH(tasks.updated_at) as month'),
-    //             DB::raw('COUNT(*) as count')
-    //         )
-    //         ->groupBy('year', 'month')
-    //         ->orderBy('year')
-    //         ->orderBy('month')
-    //         ->get();
-
-    //     // Format the data for chart
-    //     $labels = [];
-    //     $values = [];
-    //     $currentDate = $startDate->copy();
-
-    //     while ($currentDate <= $endDate) {
-    //         $monthKey = $currentDate->format('Y-m');
-    //         $labels[] = $monthKey;
-    //         $values[] = 0; // Default value
-    //         $currentDate->addMonth();
-    //     }
-
-    //     // Fill in actual values
-    //     foreach ($completionData as $data) {
-    //         $monthKey = sprintf('%04d-%02d', $data->year, $data->month);
-    //         $index = array_search($monthKey, $labels);
-    //         if ($index !== false) {
-    //             $values[$index] = $data->count;
-    //         }
-    //     }
-
-    //     return [
-    //         'labels' => $labels,
-    //         'values' => $values
-    //     ];
-    // }
-
-    /**
-     * Get tasks grouped by priority (excluding completed and cancelled, optionally filtered by project)
-     */
-    // protected function getTasksByPriority(User $user, $projectId = null)
-    // {
-    //     $query = TaskMember::where('user_id', $user->id)
-    //         ->join('tasks', 'task_members.task_id', '=', 'tasks.id')
-    //         ->whereNotIn('tasks.status', [Task::STATUS_COMPLETED, Task::STATUS_CANCELLED]);
-
-    //     if ($projectId) {
-    //         $query->join('teams', 'tasks.team_id', '=', 'teams.id')
-    //             ->where('teams.project_id', $projectId);
-    //     }
-
-    //     $priorityCounts = $query->select('tasks.priority', DB::raw('count(*) as count'))
-    //         ->groupBy('tasks.priority')
-    //         ->pluck('count', 'priority')
-    //         ->toArray();
-
-    //     $allPriorities = [
-    //         'low' => 0,
-    //         'medium' => 0,
-    //         'high' => 0
-    //     ];
-
-    //     foreach ($priorityCounts as $priority => $count) {
-    //         if (array_key_exists($priority, $allPriorities)) {
-    //             $allPriorities[$priority] = $count;
-    //         }
-    //     }
-
-    //     return $allPriorities;
-    // }
-
-    /**
      * Get workload distribution by project
      */
     protected function getWorkloadByProject(User $user)
@@ -551,11 +449,6 @@ class DashboardController extends Controller
             'values' => $values
         ];
     }
-
-
-
-
-
 
     /**
      * Get team dashboard data for a member
@@ -697,13 +590,28 @@ class DashboardController extends Controller
      */
     protected function getUserTeamRole(User $user, Team $team)
     {
-        $role = $user->roles()
-            ->where('team_id', $team->id)
-            ->first();
+        // Check if manager
+        $isManager = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('project_id', $team->project_id)
+            ->where('role_id', Role::ROLE_MANAGER)
+            ->whereNull('team_id')
+            ->exists();
 
-        if ($role) {
-            return $role->name; // Assuming Role model has a 'name' attribute
+        if ($isManager) {
+            return 'manager';
         }
+
+        //  Check if leader
+        $isLeader = DB::table('project_role_user')
+            ->where('user_id', $user->id)
+            ->where('team_id', $team->id)
+            ->where('role_id', Role::ROLE_LEADER)
+            ->exists();
+        if ($isLeader) {
+            return 'leader';
+        }
+        // Default to member 
 
         return 'member';
     }
