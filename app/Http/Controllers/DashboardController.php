@@ -529,27 +529,16 @@ class DashboardController extends Controller
             return $this->error('Team Not Found.', 404);
         }
 
-        // Check if user is a leader or manager of this team
-        $isManager = DB::table('project_role_user')
-            ->where('user_id', $user->id)
-            ->where('project_id', $team->project_id)
-            ->where('role_id', Role::ROLE_MANAGER)
-            ->whereNull('team_id')
-            ->exists();
-
-        $isLeader = DB::table('project_role_user')
-            ->where('user_id', $user->id)
-            ->where('team_id', $request->team_id)
-            ->where('role_id', Role::ROLE_LEADER)
-            ->exists();
-
-        if (!$isLeader && !$isManager) {
-            return $this->error('Not authorized to view this data.', 403);
-        }
-
+        
         // Get user role in team
         $role = $this->getUserTeamRole($user, $team);
 
+        // Check if user is a leader or manager of this team
+
+        if ($role == 'member') {
+            return $this->error('Not authorized to view this data.', 403);
+        }
+        
         // 1. Get overdue and at risk tasks for whole team
         $taskAlerts = $this->getTeamTaskAlerts($team->id);
 
