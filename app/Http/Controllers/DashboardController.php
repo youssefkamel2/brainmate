@@ -557,8 +557,25 @@ class DashboardController extends Controller
             'role' => $role
         ];
 
+        // task counts
+        $taskCounts = Task::where('team_id', $team->id)
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+        $taskCounts = array_merge([
+            Task::STATUS_PENDING => 0,
+            Task::STATUS_IN_PROGRESS => 0,
+            Task::STATUS_COMPLETED => 0,
+            Task::STATUS_CANCELLED => 0,
+            Task::STATUS_ON_HOLD => 0,
+            Task::STATUS_IN_REVIEW => 0
+        ], $taskCounts);
+
+
         // 6. Get task breakdown by priority for whole team
         $tasksByPriority = $this->getTeamTasksByPriority($team->id);
+        
 
         // 7. Get task completion rate over year for whole team
         $completionTrend = $this->getTeamCompletionTrend($team->id);
@@ -569,6 +586,15 @@ class DashboardController extends Controller
             'team_progress' => $teamProgress,
             'avg_completion_time' => $avgCompletionTime,
             'team_info' => $teamInfo,
+            'task_counts' => [
+                'pending' => $taskCounts[Task::STATUS_PENDING] ?? 0,
+                'in_progress' => $taskCounts[Task::STATUS_IN_PROGRESS] ?? 0,
+                'completed' => $taskCounts[Task::STATUS_COMPLETED] ?? 0,
+                'cancelled' => $taskCounts[Task::STATUS_CANCELLED] ?? 0,
+                'on_hold' => $taskCounts[Task::STATUS_ON_HOLD] ?? 0,
+                'in_review' => $taskCounts[Task::STATUS_IN_REVIEW] ?? 0,
+                'total' => array_sum($taskCounts),
+            ],
             'tasks_by_priority' => $tasksByPriority,
             'completion_trend' => $completionTrend
         ]);
