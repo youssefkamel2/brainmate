@@ -558,6 +558,7 @@ class DashboardController extends Controller
         ];
 
         // task counts
+        // get total tasks per status in this team
         $taskCounts = Task::where('team_id', $team->id)
             ->select('status', DB::raw('count(*) as count'))
             ->groupBy('status')
@@ -571,6 +572,20 @@ class DashboardController extends Controller
             Task::STATUS_ON_HOLD => 0,
             Task::STATUS_IN_REVIEW => 0
         ], $taskCounts);
+
+        print_r($taskCounts); echo "<br>";
+        // 5. Get task counts by status for whole team
+        $taskCounts = [
+            'pending' => $taskCounts[Task::STATUS_PENDING] ?? 0,
+            'in_progress' => $taskCounts[Task::STATUS_IN_PROGRESS] ?? 0,
+            'completed' => $taskCounts[Task::STATUS_COMPLETED] ?? 0,
+            'cancelled' => $taskCounts[Task::STATUS_CANCELLED] ?? 0,
+            'on_hold' => $taskCounts[Task::STATUS_ON_HOLD] ?? 0,
+            'in_review' => $taskCounts[Task::STATUS_IN_REVIEW] ?? 0,
+            'total' => array_sum($taskCounts)
+        ];  
+
+        print_r($taskCounts);die;
 
 
         // 6. Get task breakdown by priority for whole team
@@ -586,15 +601,7 @@ class DashboardController extends Controller
             'team_progress' => $teamProgress,
             'avg_completion_time' => $avgCompletionTime,
             'team_info' => $teamInfo,
-            'task_counts' => [
-                'pending' => $taskCounts[Task::STATUS_PENDING] ?? 0,
-                'in_progress' => $taskCounts[Task::STATUS_IN_PROGRESS] ?? 0,
-                'completed' => $taskCounts[Task::STATUS_COMPLETED] ?? 0,
-                'cancelled' => $taskCounts[Task::STATUS_CANCELLED] ?? 0,
-                'on_hold' => $taskCounts[Task::STATUS_ON_HOLD] ?? 0,
-                'in_review' => $taskCounts[Task::STATUS_IN_REVIEW] ?? 0,
-                'total' => array_sum($taskCounts),
-            ],
+
             'tasks_by_priority' => $tasksByPriority,
             'completion_trend' => $completionTrend
         ]);
