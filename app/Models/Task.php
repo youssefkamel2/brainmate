@@ -193,4 +193,16 @@ class Task extends Model
         $this->completed_at = null;
         $this->save();
     }
+
+    // get status name by status number
+    public static function getStatusName($status)
+    {
+        return self::$statusTexts[$status] ?? 'unknown';
+    }
+    // get status number by status name
+    public static function getStatusNumber($statusName)
+    {
+        $status = array_search($statusName, self::$statusTexts);
+        return $status !== false ? $status : null;
+    }
 }
