@@ -559,33 +559,33 @@ class DashboardController extends Controller
 
         // task counts
         // get total tasks per status in this team
-        $taskCounts = Task::where('team_id', $team->id)
-            ->select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
-        $taskCounts = array_merge([
-            Task::STATUS_PENDING => 0,
-            Task::STATUS_IN_PROGRESS => 0,
-            Task::STATUS_COMPLETED => 0,
-            Task::STATUS_CANCELLED => 0,
-            Task::STATUS_ON_HOLD => 0,
-            Task::STATUS_IN_REVIEW => 0
-        ], $taskCounts);
-
-        print_r($taskCounts); echo "<br>";
-        // 5. Get task counts by status for whole team
+        $pendingTasks = Task::where('team_id', $team->id)
+            ->where('status', Task::STATUS_PENDING)
+            ->count();
+        $inProgressTasks = Task::where('team_id', $team->id)
+            ->where('status', Task::STATUS_IN_PROGRESS)
+            ->count();
+        $completedTasks = Task::where('team_id', $team->id)
+            ->where('status', Task::STATUS_COMPLETED)
+            ->count();
+        $cancelledTasks = Task::where('team_id', $team->id)
+            ->where('status', Task::STATUS_CANCELLED)
+            ->count();
+        $onHoldTasks = Task::where('team_id', $team->id)
+            ->where('status', Task::STATUS_ON_HOLD)
+            ->count();
+        $inReviewTasks = Task::where('team_id', $team->id)
+            ->where('status', Task::STATUS_IN_REVIEW)
+            ->count();
         $taskCounts = [
-            'pending' => $taskCounts[Task::STATUS_PENDING] ?? 0,
-            'in_progress' => $taskCounts[Task::STATUS_IN_PROGRESS] ?? 0,
-            'completed' => $taskCounts[Task::STATUS_COMPLETED] ?? 0,
-            'cancelled' => $taskCounts[Task::STATUS_CANCELLED] ?? 0,
-            'on_hold' => $taskCounts[Task::STATUS_ON_HOLD] ?? 0,
-            'in_review' => $taskCounts[Task::STATUS_IN_REVIEW] ?? 0,
-            'total' => array_sum($taskCounts)
-        ];  
-
-        print_r($taskCounts);die;
+            'pending' => $pendingTasks,
+            'in_progress' => $inProgressTasks,
+            'completed' => $completedTasks,
+            'cancelled' => $cancelledTasks,
+            'on_hold' => $onHoldTasks,
+            'in_review' => $inReviewTasks,
+            'total' => $pendingTasks + $inProgressTasks + $completedTasks + $cancelledTasks + $onHoldTasks + $inReviewTasks
+        ];
 
 
         // 6. Get task breakdown by priority for whole team
@@ -601,7 +601,7 @@ class DashboardController extends Controller
             'team_progress' => $teamProgress,
             'avg_completion_time' => $avgCompletionTime,
             'team_info' => $teamInfo,
-
+            'task_counts' => $taskCounts,
             'tasks_by_priority' => $tasksByPriority,
             'completion_trend' => $completionTrend
         ]);
