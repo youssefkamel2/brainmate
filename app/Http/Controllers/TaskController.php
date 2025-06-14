@@ -901,8 +901,15 @@ class TaskController extends Controller
                     if ($log->subject_type === Task::class) {
                         $properties = json_decode($log->properties, true);
                         if (isset($properties['old_status']) && isset($properties['new_status'])) {
+                            // handle if oldStatus or newStatus is stored as numbers
                             $oldStatus = $properties['old_status'] ?? 'unknown';
                             $newStatus = $properties['new_status'] ?? 'unknown';
+                            if (is_numeric($oldStatus)) {
+                                $oldStatus = Task::getStatusName($oldStatus);
+                            }
+                            if (is_numeric($newStatus)) {
+                                $newStatus = Task::getStatusName($newStatus);
+                            }
                             $description = "changed the task status from {$oldStatus} to {$newStatus}.";
                         } else {
                             $description = "updated the task.";
